@@ -93,14 +93,14 @@ function LoginForm() {
             {t.login.labelEmail}
           </label>
           <div className="relative">
-            <Mail className="w-4 h-4 text-slate-400 absolute left-3 top-3.5" />
+            <Mail className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
             <input
               type="email"
               required
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder="officer@upazila.gov.bd"
-              className="w-full pl-9 pr-3 py-2.5 rounded-xl border border-slate-300 text-xs text-slate-900 font-medium focus:outline-none focus:ring-2 focus:ring-emerald-600"
+              className="w-full min-h-[44px] pl-10 pr-3.5 py-2.5 rounded-xl border border-slate-300 text-xs sm:text-sm text-slate-900 font-medium focus:outline-none focus:ring-2 focus:ring-emerald-600 bg-white shadow-2xs"
             />
           </div>
         </div>
@@ -110,19 +110,20 @@ function LoginForm() {
             {t.login.labelPassword}
           </label>
           <div className="relative">
-            <Lock className="w-4 h-4 text-slate-400 absolute left-3 top-3.5" />
+            <Lock className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
             <input
               type={showPassword ? "text" : "password"}
               required
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               placeholder="••••••••"
-              className="w-full pl-9 pr-10 py-2.5 rounded-xl border border-slate-300 text-xs text-slate-900 font-medium focus:outline-none focus:ring-2 focus:ring-emerald-600"
+              className="w-full min-h-[44px] pl-10 pr-12 py-2.5 rounded-xl border border-slate-300 text-xs sm:text-sm text-slate-900 font-medium focus:outline-none focus:ring-2 focus:ring-emerald-600 bg-white shadow-2xs"
             />
             <button
               type="button"
               onClick={() => setShowPassword(!showPassword)}
-              className="absolute right-3 top-3 text-slate-400 hover:text-slate-600"
+              className="absolute right-1 top-1/2 -translate-y-1/2 min-w-[44px] min-h-[44px] flex items-center justify-center text-slate-400 hover:text-slate-600"
+              aria-label="Toggle password visibility"
             >
               {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
             </button>
@@ -132,7 +133,7 @@ function LoginForm() {
         <button
           type="submit"
           disabled={loading}
-          className="w-full py-3 px-4 rounded-xl bg-emerald-800 hover:bg-emerald-900 disabled:opacity-50 text-white text-xs font-bold shadow-md transition-all flex items-center justify-center gap-2 mt-2"
+          className="w-full min-h-[44px] py-3 px-4 rounded-xl bg-emerald-800 hover:bg-emerald-900 disabled:opacity-50 text-white text-xs sm:text-sm font-bold shadow-md transition-all flex items-center justify-center gap-2 mt-2 cursor-pointer"
         >
           {loading ? (
             <>
@@ -155,11 +156,11 @@ function LoginForm() {
           {t.login.quickDemoTitle}
         </div>
 
-        <div className="grid grid-cols-2 gap-2 text-xs">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
           <button
             type="button"
             onClick={() => handleQuickFill("admin@upazila.gov.bd", "admin123")}
-            className="p-2.5 text-left rounded-xl border border-purple-200 bg-purple-50/70 hover:bg-purple-100 transition-colors"
+            className="p-3 min-h-[48px] text-left rounded-xl border border-purple-200 bg-purple-50/70 hover:bg-purple-100 transition-colors cursor-pointer"
           >
             <div className="font-bold text-purple-900 text-[11px]">{t.login.btnDemoSuperAdmin}</div>
             <div className="text-[10px] text-purple-700">admin@upazila.gov.bd</div>
@@ -169,7 +170,7 @@ function LoginForm() {
           <button
             type="button"
             onClick={() => handleQuickFill("uno@upazila.gov.bd", "uno123")}
-            className="p-2.5 text-left rounded-xl border border-amber-200 bg-amber-50/70 hover:bg-amber-100 transition-colors"
+            className="p-3 min-h-[48px] text-left rounded-xl border border-amber-200 bg-amber-50/70 hover:bg-amber-100 transition-colors cursor-pointer"
           >
             <div className="font-bold text-amber-900 text-[11px]">{language === "bn" ? "উপজেলা এডমিন (ইউএনও)" : "Upazila Admin (UNO)"}</div>
             <div className="text-[10px] text-amber-700">uno@upazila.gov.bd</div>
@@ -179,7 +180,7 @@ function LoginForm() {
           <button
             type="button"
             onClick={() => handleQuickFill("dss@upazila.gov.bd", "admin123")}
-            className="p-2.5 text-left rounded-xl border border-blue-200 bg-blue-50/70 hover:bg-blue-100 transition-colors"
+            className="p-3 min-h-[48px] text-left rounded-xl border border-blue-200 bg-blue-50/70 hover:bg-blue-100 transition-colors cursor-pointer"
           >
             <div className="font-bold text-blue-900 text-[11px]">{t.login.btnDemoDss}</div>
             <div className="text-[10px] text-blue-700">dss@upazila.gov.bd</div>
@@ -189,7 +190,7 @@ function LoginForm() {
           <button
             type="button"
             onClick={() => handleQuickFill("dwa@upazila.gov.bd", "admin123")}
-            className="p-2.5 text-left rounded-xl border border-pink-200 bg-pink-50/70 hover:bg-pink-100 transition-colors"
+            className="p-3 min-h-[48px] text-left rounded-xl border border-pink-200 bg-pink-50/70 hover:bg-pink-100 transition-colors cursor-pointer"
           >
             <div className="font-bold text-pink-900 text-[11px]">{t.login.btnDemoDwa}</div>
             <div className="text-[10px] text-pink-700">dwa@upazila.gov.bd</div>
@@ -211,12 +212,12 @@ export default function LoginPage() {
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-emerald-950 flex flex-col justify-center items-center p-4 sm:p-6 lg:p-8 relative">
       {/* Top Floating Language Switcher */}
       <div className="absolute top-4 right-4 sm:top-6 sm:right-6">
-        <div className="inline-flex items-center rounded-xl bg-slate-800/80 border border-slate-700/80 p-1 text-xs shadow-lg backdrop-blur-md">
-          <Globe className="w-3.5 h-3.5 text-emerald-400 ml-2 mr-1" />
+        <div className="inline-flex items-center rounded-2xl bg-slate-800/80 border border-slate-700/80 p-1 text-xs shadow-lg backdrop-blur-md">
+          <Globe className="w-4 h-4 text-emerald-400 ml-2.5 mr-1.5" />
           <button
             type="button"
             onClick={() => setLanguage("bn")}
-            className={`px-2.5 py-1 rounded-lg font-bold transition-all ${
+            className={`min-h-[40px] px-3.5 py-1.5 rounded-xl font-bold transition-all cursor-pointer ${
               language === "bn"
                 ? "bg-emerald-600 text-white shadow-xs"
                 : "text-slate-300 hover:text-white"
@@ -227,7 +228,7 @@ export default function LoginPage() {
           <button
             type="button"
             onClick={() => setLanguage("en")}
-            className={`px-2.5 py-1 rounded-lg font-bold transition-all ${
+            className={`min-h-[40px] px-3.5 py-1.5 rounded-xl font-bold transition-all cursor-pointer ${
               language === "en"
                 ? "bg-emerald-600 text-white shadow-xs"
                 : "text-slate-300 hover:text-white"

@@ -335,7 +335,7 @@ export default function AuditLogsPage() {
           </div>
 
           {/* Quick Metrics */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mt-6 pt-6 border-t border-slate-100 text-xs">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mt-6 pt-6 border-t border-slate-100 text-xs">
             <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-200">
               <div className="text-slate-500 font-semibold uppercase text-[10px]">
                 {language === "bn" ? "মোট আপলোড ব্যাচ" : "Total Batches"}
@@ -372,10 +372,10 @@ export default function AuditLogsPage() {
         </div>
 
         {/* Tab Navigation */}
-        <div className="flex items-center gap-3 border-b border-slate-200 pb-1">
+        <div className="flex items-center gap-3 border-b border-slate-200 pb-1 overflow-x-auto">
           <button
             onClick={() => setActiveTab("batches")}
-            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-bold text-xs sm:text-sm transition-all cursor-pointer ${
+            className={`min-h-[44px] flex items-center gap-2 px-4 py-2.5 rounded-xl font-bold text-xs sm:text-sm transition-all whitespace-nowrap cursor-pointer ${
               activeTab === "batches"
                 ? "bg-slate-900 text-white shadow-xs"
                 : "text-slate-600 hover:text-slate-900 hover:bg-slate-200/60"
@@ -391,7 +391,7 @@ export default function AuditLogsPage() {
           {isSuperAdmin && (
             <button
               onClick={() => setActiveTab("audit")}
-              className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-bold text-xs sm:text-sm transition-all cursor-pointer ${
+              className={`min-h-[44px] flex items-center gap-2 px-4 py-2.5 rounded-xl font-bold text-xs sm:text-sm transition-all whitespace-nowrap cursor-pointer ${
                 activeTab === "audit"
                   ? "bg-purple-950 text-white shadow-xs"
                   : "text-slate-600 hover:text-slate-900 hover:bg-slate-200/60"
@@ -410,25 +410,23 @@ export default function AuditLogsPage() {
         {activeTab === "batches" && (
           <div className="space-y-4">
             {/* Filter Bar */}
-            <div className="bg-white rounded-2xl p-4 shadow-xs border border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-3">
-              <div className="relative w-full sm:w-80">
-                <Search className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
+            <div className="bg-white rounded-2xl p-4 shadow-xs border border-slate-200 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 w-full">
+              <div className="relative sm:col-span-2 md:col-span-3">
+                <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
                 <input
                   type="text"
                   value={batchSearch}
                   onChange={(e) => setBatchSearch(e.target.value)}
                   placeholder={language === "bn" ? "ব্যাচ কোড, ফাইল, স্কিম বা কর্মকর্তা খুঁজুন..." : "Search batch code, file, scheme..."}
-                  className="w-full pl-9 pr-3 py-2 text-xs rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-600 bg-white"
+                  className="w-full min-h-[44px] pl-9 pr-3 py-2 text-xs sm:text-sm rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-600 bg-white"
                 />
               </div>
 
-              <div className="flex items-center gap-2 w-full sm:w-auto">
-                <Filter className="w-3.5 h-3.5 text-slate-500" />
-                <span className="text-xs text-slate-500 font-semibold">{language === "bn" ? "স্ট্যাটাস:" : "Status:"}</span>
+              <div className="relative">
                 <select
                   value={batchStatusFilter}
                   onChange={(e) => setBatchStatusFilter(e.target.value)}
-                  className="px-3 py-1.5 text-xs rounded-xl border border-slate-300 bg-white font-medium focus:outline-none focus:ring-2 focus:ring-blue-600"
+                  className="w-full min-h-[44px] px-3 py-2 text-xs sm:text-sm rounded-xl border border-slate-300 bg-white font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-600"
                 >
                   <option value="ALL">{language === "bn" ? "সকল ব্যাচ (All)" : "All Batches"}</option>
                   <option value="ACTIVE">{language === "bn" ? "সক্রিয় (Active)" : "Active Only"}</option>
@@ -453,9 +451,9 @@ export default function AuditLogsPage() {
                   </p>
                 </div>
               ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left text-xs border-collapse">
-                    <thead className="bg-slate-900 text-white font-semibold text-[11px] uppercase tracking-wider">
+                <div className="w-full overflow-x-auto">
+                  <table className="w-full min-w-[850px] text-left text-xs border-collapse">
+                    <thead className="bg-slate-900 text-white font-semibold text-[11px] uppercase tracking-wider whitespace-nowrap">
                       <tr>
                         <th className="py-3.5 px-4">{language === "bn" ? "ব্যাচ কোড" : "Batch Code"}</th>
                         <th className="py-3.5 px-4">{language === "bn" ? "ফাইল ও কর্মসূচি" : "File & Scheme"}</th>
@@ -569,32 +567,30 @@ export default function AuditLogsPage() {
         {activeTab === "audit" && isSuperAdmin && (
           <div className="space-y-4">
             {/* Filter Bar */}
-            <div className="bg-white rounded-2xl p-4 shadow-xs border border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-3">
-              <div className="relative w-full sm:w-80">
-                <Search className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
+            <div className="bg-white rounded-2xl p-4 shadow-xs border border-slate-200 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 w-full">
+              <div className="relative sm:col-span-2 md:col-span-3">
+                <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
                 <input
                   type="text"
                   value={auditSearch}
                   onChange={(e) => setAuditSearch(e.target.value)}
                   placeholder={language === "bn" ? "কর্মকর্তা, বিবরণ বা আইপি খুঁজুন..." : "Search action, officer, details, IP..."}
-                  className="w-full pl-9 pr-3 py-2 text-xs rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-purple-600 bg-white"
+                  className="w-full min-h-[44px] pl-9 pr-3 py-2 text-xs sm:text-sm rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-purple-600 bg-white"
                 />
               </div>
 
-              <div className="flex items-center gap-2 w-full sm:w-auto">
-                <Filter className="w-3.5 h-3.5 text-slate-500" />
-                <span className="text-xs text-slate-500 font-semibold">{language === "bn" ? "কার্যক্রম:" : "Action:"}</span>
+              <div className="relative">
                 <select
                   value={actionFilter}
                   onChange={(e) => setActionFilter(e.target.value)}
-                  className="px-3 py-1.5 text-xs rounded-xl border border-slate-300 bg-white font-medium focus:outline-none focus:ring-2 focus:ring-purple-600"
+                  className="w-full min-h-[44px] px-3 py-2 text-xs sm:text-sm rounded-xl border border-slate-300 bg-white font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-purple-600"
                 >
-                  <option value="ALL">{language === "bn" ? "সকল কার্যক্রম (All Actions)" : "All Actions"}</option>
-                  <option value="BATCH_UPLOAD">{language === "bn" ? "এক্সেল আপলোড (BATCH_UPLOAD)" : "Batch Upload"}</option>
-                  <option value="BATCH_ROLLBACK">{language === "bn" ? "ব্যাচ রোলব্যাক (BATCH_ROLLBACK)" : "Batch Rollback"}</option>
-                  <option value="SCHEME_SUSPENDED">{language === "bn" ? "ভাতা স্থগিত (SCHEME_SUSPENDED)" : "Scheme Suspended"}</option>
-                  <option value="DUPLICATE_VERIFIED">{language === "bn" ? "ডুপ্লিকেট যাচাই (DUPLICATE_VERIFIED)" : "Duplicate Verified"}</option>
-                  <option value="USER_CREATED">{language === "bn" ? "ইউজার সৃষ্টি (USER_CREATED)" : "User Created"}</option>
+                  <option value="ALL">{language === "bn" ? "সকল কার্যক্রম (All)" : "All Actions"}</option>
+                  <option value="BATCH_UPLOAD">{language === "bn" ? "এক্সেল আপলোড" : "Batch Upload"}</option>
+                  <option value="BATCH_ROLLBACK">{language === "bn" ? "ব্যাচ রোলব্যাক" : "Batch Rollback"}</option>
+                  <option value="SCHEME_SUSPENDED">{language === "bn" ? "ভাতা স্থগিত" : "Scheme Suspended"}</option>
+                  <option value="DUPLICATE_VERIFIED">{language === "bn" ? "ডুপ্লিকেট যাচাই" : "Duplicate Verified"}</option>
+                  <option value="USER_CREATED">{language === "bn" ? "ইউজার সৃষ্টি" : "User Created"}</option>
                 </select>
               </div>
             </div>
@@ -612,9 +608,9 @@ export default function AuditLogsPage() {
                   <p className="text-sm font-semibold">{language === "bn" ? "কোনো অডিট লগ রেকর্ড পাওয়া যায়নি।" : "No audit trail entries found."}</p>
                 </div>
               ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left text-xs border-collapse">
-                    <thead className="bg-purple-950 text-purple-200 font-semibold text-[11px] uppercase tracking-wider">
+                <div className="w-full overflow-x-auto">
+                  <table className="w-full min-w-[850px] text-left text-xs border-collapse">
+                    <thead className="bg-purple-950 text-purple-200 font-semibold text-[11px] uppercase tracking-wider whitespace-nowrap">
                       <tr>
                         <th className="py-3.5 px-4">{language === "bn" ? "কার্যক্রমের ধরন" : "Action Type"}</th>
                         <th className="py-3.5 px-4">{language === "bn" ? "কর্মকর্তা / ইউজার" : "Officer / User"}</th>
@@ -676,17 +672,17 @@ export default function AuditLogsPage() {
 
         {/* MODAL: ROLLBACK CONFIRMATION */}
         {targetBatchForRollback && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-in fade-in duration-200">
-            <div className="bg-white rounded-3xl p-6 sm:p-8 max-w-lg w-full shadow-2xl border border-slate-200 space-y-5">
-              <div className="flex items-start gap-4">
-                <div className="w-12 h-12 rounded-2xl bg-rose-100 text-rose-600 flex items-center justify-center shrink-0">
-                  <AlertTriangle className="w-6 h-6" />
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-3 sm:p-4 animate-in fade-in duration-200">
+            <div className="bg-white rounded-2xl sm:rounded-3xl p-4 sm:p-6 w-[95vw] max-w-lg max-h-[90vh] overflow-y-auto shadow-2xl border border-slate-200 space-y-4">
+              <div className="flex items-start gap-3 sm:gap-4">
+                <div className="w-10 sm:w-12 h-10 sm:h-12 rounded-2xl bg-rose-100 text-rose-600 flex items-center justify-center shrink-0">
+                  <AlertTriangle className="w-5 sm:w-6 h-5 sm:h-6" />
                 </div>
                 <div>
-                  <h3 className="text-lg font-bold text-slate-900">
+                  <h3 className="text-base sm:text-lg font-bold text-slate-900">
                     {language === "bn" ? "এক্সেল ব্যাচ রোলব্যাক নিশ্চিতকরণ" : "Confirm Batch Rollback"}
                   </h3>
-                  <p className="text-xs text-slate-500 mt-1">
+                  <p className="text-xs text-slate-500 mt-0.5">
                     {language === "bn"
                       ? "এই কার্যক্রমটি অপূরণীয় এবং ডাটাবেজ থেকে ডাটা স্থায়ীভাবে মুছে ফেলবে।"
                       : "This action is permanent and will remove ingested records from the registry."}
@@ -695,7 +691,7 @@ export default function AuditLogsPage() {
               </div>
 
               {/* Warning Notice Box */}
-              <div className="p-4 rounded-2xl bg-rose-50 border border-rose-200 text-xs text-rose-900 space-y-2 leading-relaxed">
+              <div className="p-3.5 sm:p-4 rounded-2xl bg-rose-50 border border-rose-200 text-xs text-rose-900 space-y-2 leading-relaxed">
                 <div className="font-bold flex items-center gap-1.5 text-rose-800">
                   <AlertTriangle className="w-4 h-4 shrink-0" />
                   <span>
@@ -719,7 +715,7 @@ export default function AuditLogsPage() {
                 </div>
                 <div className="flex justify-between">
                   <span className="text-slate-500">{language === "bn" ? "ফাইলের নাম:" : "File Name:"}</span>
-                  <span className="font-semibold text-slate-900 truncate max-w-[220px]">{targetBatchForRollback.fileName}</span>
+                  <span className="font-semibold text-slate-900 truncate max-w-[200px]">{targetBatchForRollback.fileName}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-slate-500">{language === "bn" ? "কর্মসূচি:" : "Scheme:"}</span>
@@ -732,12 +728,12 @@ export default function AuditLogsPage() {
               </div>
 
               {/* Action Buttons */}
-              <div className="flex items-center justify-end gap-3 pt-2">
+              <div className="flex flex-col-reverse sm:flex-row items-center justify-end gap-2.5 pt-2 border-t border-slate-100">
                 <button
                   type="button"
                   onClick={() => setTargetBatchForRollback(null)}
                   disabled={rollingBack}
-                  className="px-4 py-2.5 rounded-xl border border-slate-300 text-slate-700 text-xs font-semibold hover:bg-slate-100 transition-all cursor-pointer"
+                  className="w-full sm:w-auto min-h-[44px] px-4 py-2.5 rounded-xl border border-slate-300 text-slate-700 text-xs sm:text-sm font-semibold hover:bg-slate-100 transition-all cursor-pointer flex items-center justify-center"
                 >
                   {language === "bn" ? "না, ফিরে যান" : "Cancel"}
                 </button>
@@ -746,7 +742,7 @@ export default function AuditLogsPage() {
                   type="button"
                   onClick={handleConfirmRollback}
                   disabled={rollingBack}
-                  className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-rose-700 hover:bg-rose-800 text-white text-xs font-bold transition-all shadow-md cursor-pointer disabled:opacity-50"
+                  className="w-full sm:w-auto min-h-[44px] inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-rose-700 hover:bg-rose-800 text-white text-xs sm:text-sm font-bold transition-all shadow-md cursor-pointer disabled:opacity-50"
                 >
                   {rollingBack ? (
                     <>

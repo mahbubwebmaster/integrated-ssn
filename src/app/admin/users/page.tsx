@@ -462,7 +462,7 @@ export default function AdminUsersPage() {
           </div>
 
           {/* Quick Metrics */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mt-6 pt-6 border-t border-slate-100 text-xs">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mt-6 pt-6 border-t border-slate-100 text-xs">
             <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-200">
               <div className="text-slate-500 font-semibold uppercase text-[10px]">
                 {language === "bn" ? "মোট কর্মকর্তা ইউজার" : "Total Officers"}
@@ -521,38 +521,40 @@ export default function AdminUsersPage() {
                   setDeptFilter("ALL");
                   setStatusFilter("ALL");
                 }}
-                className="text-[11px] font-semibold text-red-600 hover:text-red-800 transition-colors"
+                className="text-[11px] font-semibold text-red-600 hover:text-red-800 transition-colors cursor-pointer"
               >
                 {language === "bn" ? "ফিল্টার রিসেট করুন" : "Reset Filters"}
               </button>
             )}
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
             {/* Search */}
-            <div className="relative">
-              <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
+            <div className="relative sm:col-span-2 md:col-span-4">
+              <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
               <input
                 type="text"
-                placeholder={language === "bn" ? "নাম, ইমেইল বা পদবি..." : "Search name, email, designation..."}
+                placeholder={language === "bn" ? "নাম, ইমেইল বা পদবি দিয়ে খুঁজুন..." : "Search name, email, designation..."}
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                className="w-full pl-9 pr-3 py-2 rounded-xl border border-slate-300 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-600"
+                className="w-full min-h-[44px] pl-9 pr-3 py-2 rounded-xl border border-slate-300 text-xs sm:text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-600 bg-white"
               />
             </div>
 
             {/* Role Filter */}
-            <select
-              value={roleFilter}
-              onChange={(e) => setRoleFilter(e.target.value)}
-              className="px-3 py-2 rounded-xl border border-slate-300 text-xs bg-white text-slate-800 font-semibold focus:outline-none focus:ring-2 focus:ring-emerald-600"
-            >
-              <option value="ALL">{language === "bn" ? "সকল ভূমিকা / রোল" : "All Roles"}</option>
-              <option value="SUPER_ADMIN">{language === "bn" ? "সুপার এডমিন / জেলা প্রশাসক" : "Super Admin (DC)"}</option>
-              <option value="UPAZILA_ADMIN">{language === "bn" ? "উপজেলা এডমিন (ইউএনও)" : "Upazila Admin (UNO)"}</option>
-              <option value="DEPT_OFFICER">{language === "bn" ? "উপজেলা দপ্তর কর্মকর্তা" : "Department Officer"}</option>
-              <option value="UNION_VIEWER">{language === "bn" ? "ইউনিয়ন ভিউয়ার" : "Union Viewer"}</option>
-            </select>
+            <div className="relative">
+              <select
+                value={roleFilter}
+                onChange={(e) => setRoleFilter(e.target.value)}
+                className="w-full min-h-[44px] px-3 py-2 rounded-xl border border-slate-300 text-xs sm:text-sm bg-white text-slate-800 font-semibold focus:outline-none focus:ring-2 focus:ring-emerald-600"
+              >
+                <option value="ALL">{language === "bn" ? "সকল ভূমিকা / রোল" : "All Roles"}</option>
+                <option value="SUPER_ADMIN">{language === "bn" ? "সুপার এডমিন / জেলা প্রশাসক" : "Super Admin (DC)"}</option>
+                <option value="UPAZILA_ADMIN">{language === "bn" ? "উপজেলা এডমিন (ইউএনও)" : "Upazila Admin (UNO)"}</option>
+                <option value="DEPT_OFFICER">{language === "bn" ? "উপজেলা দপ্তর কর্মকর্তা" : "Department Officer"}</option>
+                <option value="UNION_VIEWER">{language === "bn" ? "ইউনিয়ন ভিউয়ার" : "Union Viewer"}</option>
+              </select>
+            </div>
 
             {/* Upazila Filter */}
             <div className="relative">
@@ -560,7 +562,7 @@ export default function AdminUsersPage() {
                 value={upazilaFilter}
                 onChange={(e) => setUpazilaFilter(e.target.value)}
                 disabled={Boolean(currentUser.upazilaName)}
-                className={`w-full px-3 py-2 rounded-xl border text-xs focus:outline-none focus:ring-2 focus:ring-emerald-600 ${
+                className={`w-full min-h-[44px] px-3 py-2 rounded-xl border text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-emerald-600 ${
                   currentUser.upazilaName
                     ? "bg-slate-100 border-slate-300 text-slate-700 font-semibold cursor-not-allowed"
                     : "border-slate-300 bg-white text-slate-800 font-semibold"
@@ -574,36 +576,40 @@ export default function AdminUsersPage() {
                 ))}
               </select>
               {currentUser.upazilaName && (
-                <span className="absolute right-2.5 top-2.5 text-[10px] text-amber-700 font-semibold flex items-center gap-0.5">
+                <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] text-amber-700 font-semibold flex items-center gap-0.5">
                   <Lock className="w-3 h-3" />
                 </span>
               )}
             </div>
 
             {/* Department Filter */}
-            <select
-              value={deptFilter}
-              onChange={(e) => setDeptFilter(e.target.value)}
-              className="px-3 py-2 rounded-xl border border-slate-300 text-xs bg-white text-slate-800 font-semibold focus:outline-none focus:ring-2 focus:ring-emerald-600"
-            >
-              <option value="ALL">{language === "bn" ? "সকল দপ্তর" : "All Departments"}</option>
-              {departments.map((dept) => (
-                <option key={dept.id} value={dept.id}>
-                  {getDepartmentName(dept, language)}
-                </option>
-              ))}
-            </select>
+            <div className="relative">
+              <select
+                value={deptFilter}
+                onChange={(e) => setDeptFilter(e.target.value)}
+                className="w-full min-h-[44px] px-3 py-2 rounded-xl border border-slate-300 text-xs sm:text-sm bg-white text-slate-800 font-semibold focus:outline-none focus:ring-2 focus:ring-emerald-600"
+              >
+                <option value="ALL">{language === "bn" ? "সকল দপ্তর" : "All Departments"}</option>
+                {departments.map((dept) => (
+                  <option key={dept.id} value={dept.id}>
+                    {getDepartmentName(dept, language)}
+                  </option>
+                ))}
+              </select>
+            </div>
 
             {/* Status Filter */}
-            <select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-              className="px-3 py-2 rounded-xl border border-slate-300 text-xs bg-white text-slate-800 font-semibold focus:outline-none focus:ring-2 focus:ring-emerald-600"
-            >
-              <option value="ALL">{language === "bn" ? "সকল স্ট্যাটাস" : "All Status"}</option>
-              <option value="ACTIVE">{language === "bn" ? "সক্রিয় একাউন্ট" : "Active"}</option>
-              <option value="INACTIVE">{language === "bn" ? "নিষ্ক্রিয় একাউন্ট" : "Inactive"}</option>
-            </select>
+            <div className="relative">
+              <select
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value)}
+                className="w-full min-h-[44px] px-3 py-2 rounded-xl border border-slate-300 text-xs sm:text-sm bg-white text-slate-800 font-semibold focus:outline-none focus:ring-2 focus:ring-emerald-600"
+              >
+                <option value="ALL">{language === "bn" ? "সকল স্ট্যাটাস" : "All Status"}</option>
+                <option value="ACTIVE">{language === "bn" ? "সক্রিয় একাউন্ট" : "Active"}</option>
+                <option value="INACTIVE">{language === "bn" ? "নিষ্ক্রিয় একাউন্ট" : "Inactive"}</option>
+              </select>
+            </div>
           </div>
         </div>
 
@@ -662,9 +668,9 @@ export default function AdminUsersPage() {
               </p>
             </div>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs border-collapse">
-                <thead className="bg-slate-100 text-slate-700 font-semibold uppercase tracking-wider text-[11px] border-b border-slate-200">
+            <div className="w-full overflow-x-auto">
+              <table className="w-full min-w-[850px] text-left text-xs border-collapse">
+                <thead className="bg-slate-100 text-slate-700 font-semibold uppercase tracking-wider text-[11px] border-b border-slate-200 whitespace-nowrap">
                   <tr>
                     <th className="py-3 px-4">{t.adminUsers.colName}</th>
                     <th className="py-3 px-4">{t.adminUsers.colDesignation}</th>
@@ -939,21 +945,22 @@ export default function AdminUsersPage() {
 
         {/* MODAL 1: Create New User */}
         {showCreateModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4">
-            <div className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 space-y-4">
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-3 sm:p-4">
+            <div className="bg-white rounded-2xl sm:rounded-3xl max-w-lg w-[95vw] p-4 sm:p-6 shadow-2xl border border-slate-200 space-y-4 max-h-[90vh] overflow-y-auto">
               <div className="flex items-center justify-between pb-3 border-b border-slate-100">
                 <div className="flex items-center gap-2">
-                  <div className="w-8 h-8 rounded-lg bg-emerald-100 text-emerald-800 flex items-center justify-center">
+                  <div className="w-8 h-8 rounded-lg bg-emerald-100 text-emerald-800 flex items-center justify-center shrink-0">
                     <Plus className="w-5 h-5" />
                   </div>
-                  <h3 className="font-bold text-slate-900 text-base">
+                  <h3 className="font-bold text-slate-900 text-sm sm:text-base">
                     {t.adminUsers.modalCreateTitle}
                   </h3>
                 </div>
                 <button
                   type="button"
                   onClick={() => setShowCreateModal(false)}
-                  className="text-slate-400 hover:text-slate-600"
+                  className="text-slate-400 hover:text-slate-600 p-2 min-w-[40px] min-h-[40px] flex items-center justify-center rounded-xl hover:bg-slate-100 cursor-pointer"
+                  aria-label="Close"
                 >
                   <X className="w-5 h-5" />
                 </button>
@@ -1108,18 +1115,18 @@ export default function AdminUsersPage() {
                   />
                 </div>
 
-                <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+                <div className="flex flex-col-reverse sm:flex-row items-center justify-end gap-2 pt-2 border-t border-slate-100">
                   <button
                     type="button"
                     onClick={() => setShowCreateModal(false)}
-                    className="px-4 py-2 rounded-xl border border-slate-300 font-semibold text-slate-700 hover:bg-slate-50 cursor-pointer"
+                    className="w-full sm:w-auto min-h-[44px] px-4 py-2 rounded-xl border border-slate-300 font-semibold text-slate-700 hover:bg-slate-50 cursor-pointer flex items-center justify-center transition-colors"
                   >
                     {t.common.cancel}
                   </button>
                   <button
                     type="submit"
                     disabled={creating}
-                    className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-emerald-800 hover:bg-emerald-900 disabled:opacity-50 text-white font-bold shadow-xs transition-all cursor-pointer"
+                    className="w-full sm:w-auto min-h-[44px] inline-flex items-center justify-center gap-1.5 px-5 py-2 rounded-xl bg-emerald-800 hover:bg-emerald-900 disabled:opacity-50 text-white font-bold shadow-xs transition-all cursor-pointer"
                   >
                     {creating && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
                     {t.adminUsers.btnSubmitCreate}
@@ -1132,11 +1139,11 @@ export default function AdminUsersPage() {
 
         {/* MODAL 2: Reset Password */}
         {showResetModal && targetUser && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4">
-            <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-200 space-y-4">
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-3 sm:p-4">
+            <div className="bg-white rounded-2xl sm:rounded-3xl max-w-md w-[95vw] p-4 sm:p-6 shadow-2xl border border-slate-200 space-y-4 max-h-[90vh] overflow-y-auto">
               <div className="flex items-center justify-between pb-3 border-b border-slate-100">
                 <div className="flex items-center gap-2">
-                  <div className="w-8 h-8 rounded-lg bg-amber-100 text-amber-800 flex items-center justify-center">
+                  <div className="w-8 h-8 rounded-lg bg-amber-100 text-amber-800 flex items-center justify-center shrink-0">
                     <KeyRound className="w-4 h-4" />
                   </div>
                   <div>
@@ -1149,7 +1156,8 @@ export default function AdminUsersPage() {
                 <button
                   type="button"
                   onClick={() => setShowResetModal(false)}
-                  className="text-slate-400 hover:text-slate-600"
+                  className="text-slate-400 hover:text-slate-600 p-2 min-w-[40px] min-h-[40px] flex items-center justify-center rounded-xl hover:bg-slate-100 cursor-pointer"
+                  aria-label="Close"
                 >
                   <X className="w-5 h-5" />
                 </button>
@@ -1182,18 +1190,18 @@ export default function AdminUsersPage() {
                   </div>
                 </div>
 
-                <div className="flex items-center justify-end gap-2 pt-2">
+                <div className="flex flex-col-reverse sm:flex-row items-center justify-end gap-2 pt-2">
                   <button
                     type="button"
                     onClick={() => setShowResetModal(false)}
-                    className="px-4 py-2 rounded-xl border border-slate-300 font-semibold text-slate-700 hover:bg-slate-50 cursor-pointer"
+                    className="w-full sm:w-auto min-h-[44px] px-4 py-2 rounded-xl border border-slate-300 font-semibold text-slate-700 hover:bg-slate-50 cursor-pointer flex items-center justify-center transition-colors"
                   >
                     {t.common.cancel}
                   </button>
                   <button
                     type="submit"
                     disabled={resetting}
-                    className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-amber-700 hover:bg-amber-800 disabled:opacity-50 text-white font-bold shadow-xs transition-all cursor-pointer"
+                    className="w-full sm:w-auto min-h-[44px] inline-flex items-center justify-center gap-1.5 px-5 py-2 rounded-xl bg-amber-700 hover:bg-amber-800 disabled:opacity-50 text-white font-bold shadow-xs transition-all cursor-pointer"
                   >
                     {resetting && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
                     {t.adminUsers.btnSubmitReset}
@@ -1206,11 +1214,11 @@ export default function AdminUsersPage() {
 
         {/* MODAL 3: Edit User Details */}
         {showEditModal && editTargetUser && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4">
-            <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-200 space-y-4">
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-3 sm:p-4">
+            <div className="bg-white rounded-2xl sm:rounded-3xl max-w-md w-[95vw] p-4 sm:p-6 shadow-2xl border border-slate-200 space-y-4 max-h-[90vh] overflow-y-auto">
               <div className="flex items-center justify-between pb-3 border-b border-slate-100">
                 <div className="flex items-center gap-2">
-                  <div className="w-8 h-8 rounded-lg bg-blue-100 text-blue-800 flex items-center justify-center">
+                  <div className="w-8 h-8 rounded-lg bg-blue-100 text-blue-800 flex items-center justify-center shrink-0">
                     <Edit className="w-4 h-4" />
                   </div>
                   <div>
@@ -1223,7 +1231,8 @@ export default function AdminUsersPage() {
                 <button
                   type="button"
                   onClick={() => setShowEditModal(false)}
-                  className="text-slate-400 hover:text-slate-600"
+                  className="text-slate-400 hover:text-slate-600 p-2 min-w-[40px] min-h-[40px] flex items-center justify-center rounded-xl hover:bg-slate-100 cursor-pointer"
+                  aria-label="Close"
                 >
                   <X className="w-5 h-5" />
                 </button>
@@ -1329,18 +1338,18 @@ export default function AdminUsersPage() {
                   </div>
                 )}
 
-                <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+                <div className="flex flex-col-reverse sm:flex-row items-center justify-end gap-2 pt-2 border-t border-slate-100">
                   <button
                     type="button"
                     onClick={() => setShowEditModal(false)}
-                    className="px-4 py-2 rounded-xl border border-slate-300 font-semibold text-slate-700 hover:bg-slate-50 cursor-pointer"
+                    className="w-full sm:w-auto min-h-[44px] px-4 py-2 rounded-xl border border-slate-300 font-semibold text-slate-700 hover:bg-slate-50 cursor-pointer flex items-center justify-center transition-colors"
                   >
                     {t.common.cancel}
                   </button>
                   <button
                     type="submit"
                     disabled={updating}
-                    className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-blue-700 hover:bg-blue-800 disabled:opacity-50 text-white font-bold shadow-xs transition-all cursor-pointer"
+                    className="w-full sm:w-auto min-h-[44px] inline-flex items-center justify-center gap-1.5 px-5 py-2 rounded-xl bg-blue-700 hover:bg-blue-800 disabled:opacity-50 text-white font-bold shadow-xs transition-all cursor-pointer"
                   >
                     {updating && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
                     {language === "bn" ? "সংরক্ষণ করুন" : "Save Changes"}

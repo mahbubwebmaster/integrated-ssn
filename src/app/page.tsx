@@ -702,9 +702,9 @@ export default function ExecutiveDashboard() {
         )}
 
         {/* TOP SUMMARY KPI CARDS */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           {/* Card 1: Total Beneficiaries */}
-          <div className="bg-white p-6 rounded-3xl border border-slate-200/90 shadow-xs hover:shadow-md hover:border-emerald-300 transition-all duration-300 relative overflow-hidden group">
+          <div className="bg-white p-4 sm:p-6 rounded-2xl sm:rounded-3xl border border-slate-200/90 shadow-xs hover:shadow-md hover:border-emerald-300 transition-all duration-300 relative overflow-hidden group">
             <div className="flex items-start justify-between">
               <div>
                 <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">
@@ -737,7 +737,7 @@ export default function ExecutiveDashboard() {
           </div>
 
           {/* Card 2: Duplicate Beneficiaries Found */}
-          <div className="bg-white p-6 rounded-3xl border border-red-200/80 shadow-xs hover:shadow-md hover:border-red-300 transition-all duration-300 relative overflow-hidden group">
+          <div className="bg-white p-4 sm:p-6 rounded-2xl sm:rounded-3xl border border-red-200/80 shadow-xs hover:shadow-md hover:border-red-300 transition-all duration-300 relative overflow-hidden group">
             <div className="flex items-start justify-between">
               <div>
                 <span className="text-[11px] font-bold text-red-600 uppercase tracking-wider block">
@@ -771,7 +771,7 @@ export default function ExecutiveDashboard() {
           </div>
 
           {/* Card 3: Monthly Financial Leakage */}
-          <div className="bg-white p-6 rounded-3xl border border-amber-200/80 shadow-xs hover:shadow-md hover:border-amber-300 transition-all duration-300 relative overflow-hidden group">
+          <div className="bg-white p-4 sm:p-6 rounded-2xl sm:rounded-3xl border border-amber-200/80 shadow-xs hover:shadow-md hover:border-amber-300 transition-all duration-300 relative overflow-hidden group">
             <div className="flex items-start justify-between">
               <div>
                 <span className="text-[11px] font-bold text-amber-700 uppercase tracking-wider block">
@@ -805,7 +805,7 @@ export default function ExecutiveDashboard() {
           </div>
 
           {/* Card 4: Potential New Beneficiaries Covered */}
-          <div className="bg-gradient-to-br from-emerald-800 via-teal-900 to-slate-900 text-white p-6 rounded-3xl shadow-sm hover:shadow-md transition-all duration-300 relative overflow-hidden group">
+          <div className="bg-gradient-to-br from-emerald-800 via-teal-900 to-slate-900 text-white p-4 sm:p-6 rounded-2xl sm:rounded-3xl shadow-sm hover:shadow-md transition-all duration-300 relative overflow-hidden group">
             <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-400/10 rounded-full blur-2xl pointer-events-none"></div>
             <div className="flex items-start justify-between relative z-10">
               <div>
@@ -1108,16 +1108,16 @@ export default function ExecutiveDashboard() {
           </div>
 
           {/* Search & Filter Toolbar (Screen Only) */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 print:hidden">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 print:hidden">
             {/* Search Input */}
             <div className="relative">
-              <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
+              <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
               <input
                 type="text"
                 placeholder={t.duplicatesPage.searchPlaceholder}
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                className="w-full pl-9 pr-3.5 py-2.5 rounded-xl border border-slate-200 text-xs text-slate-800 bg-slate-50/50 hover:bg-white focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-600 transition-all shadow-2xs"
+                className="w-full min-h-[44px] pl-10 pr-3.5 py-2.5 rounded-xl border border-slate-200 text-xs sm:text-sm text-slate-800 bg-slate-50/50 hover:bg-white focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-600 transition-all shadow-2xs"
               />
             </div>
 
@@ -1125,7 +1125,7 @@ export default function ExecutiveDashboard() {
             <select
               value={selectedUnion}
               onChange={(e) => setSelectedUnion(e.target.value)}
-              className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs text-slate-800 bg-slate-50/50 hover:bg-white focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-600 transition-all shadow-2xs"
+              className="w-full min-h-[44px] px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs sm:text-sm text-slate-800 bg-slate-50/50 hover:bg-white focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-600 transition-all shadow-2xs"
             >
               <option value="">{t.common.allUnions}</option>
               {redundancyData?.filters.unions.map((u) => (
@@ -1139,7 +1139,7 @@ export default function ExecutiveDashboard() {
             <select
               value={selectedDept}
               onChange={(e) => setSelectedDept(e.target.value)}
-              className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs text-slate-800 bg-slate-50/50 hover:bg-white focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-600 transition-all shadow-2xs"
+              className="w-full min-h-[44px] px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs sm:text-sm text-slate-800 bg-slate-50/50 hover:bg-white focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-600 transition-all shadow-2xs"
             >
               <option value="">{t.common.allDepartments}</option>
               {redundancyData?.breakdownByDepartment.map((d) => (
@@ -1153,7 +1153,7 @@ export default function ExecutiveDashboard() {
             <select
               value={selectedRisk}
               onChange={(e) => setSelectedRisk(e.target.value)}
-              className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs text-slate-800 bg-slate-50/50 hover:bg-white focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-600 transition-all shadow-2xs"
+              className="w-full min-h-[44px] px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs sm:text-sm text-slate-800 bg-slate-50/50 hover:bg-white focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-600 transition-all shadow-2xs"
             >
               <option value="ALL">{language === "bn" ? "সকল ঝুঁকির মাত্রা" : "All Risk Levels"}</option>
               <option value="HIGH">{language === "bn" ? "উচ্চ ঝুঁকি (৳১,৫০০+ অপচয়)" : "High Risk (BDT 1,500+ leak)"}</option>
@@ -1188,23 +1188,23 @@ export default function ExecutiveDashboard() {
             </div>
           ) : (
             <div className="border border-slate-200 rounded-2xl overflow-hidden shadow-xs">
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs border-collapse">
-                  <thead className="bg-slate-100/80 text-slate-700 font-semibold uppercase tracking-wider text-[11px] border-b border-slate-200">
-                    <tr>
-                      <th className="py-3 px-4">{t.dashboard.colBeneficiary}</th>
-                      <th className="py-3 px-4">{language === "bn" ? "জাতীয় পরিচয়পত্র / জন্ম নিবন্ধন" : "NID / BRN"}</th>
-                      <th className="py-3 px-4">{language === "bn" ? "ঠিকানা (উপজেলা ও ইউনিয়ন)" : "Address (Upazila & Union)"}</th>
-                      <th className="py-3 px-4">{t.dashboard.colActiveSchemes}</th>
-                      <th className="py-3 px-4">{t.dashboard.colTotalReceived}</th>
-                      <th className="py-3 px-4 text-red-700 bg-red-50/70">
-                        {t.dashboard.colExcessAmount}
-                      </th>
-                      <th className="py-3 px-4 text-center print:hidden">
-                        {t.dashboard.colActions}
-                      </th>
-                    </tr>
-                  </thead>
+              <div className="w-full overflow-x-auto">
+                <table className="w-full min-w-[850px] text-left text-xs border-collapse">
+                  <thead className="bg-slate-100/80 text-slate-700 font-semibold uppercase tracking-wider text-[11px] border-b border-slate-200 whitespace-nowrap">
+                  <tr>
+                    <th className="py-3 px-4">{t.dashboard.colBeneficiary}</th>
+                    <th className="py-3 px-4">{language === "bn" ? "জাতীয় পরিচয়পত্র / জন্ম নিবন্ধন" : "NID / BRN"}</th>
+                    <th className="py-3 px-4">{language === "bn" ? "ঠিকানা (উপজেলা ও ইউনিয়ন)" : "Address (Upazila & Union)"}</th>
+                    <th className="py-3 px-4">{t.dashboard.colActiveSchemes}</th>
+                    <th className="py-3 px-4">{t.dashboard.colTotalReceived}</th>
+                    <th className="py-3 px-4 text-red-700 bg-red-50/70">
+                      {t.dashboard.colExcessAmount}
+                    </th>
+                    <th className="py-3 px-4 text-center print:hidden">
+                      {t.dashboard.colActions}
+                    </th>
+                  </tr>
+                </thead>
                   <tbody className="divide-y divide-slate-100 text-slate-800 font-normal">
                     {filteredDuplicates.map((dup) => {
                       const totalReceived =
@@ -1513,8 +1513,8 @@ export default function ExecutiveDashboard() {
 
         {/* Department Officer: Suspension Request Modal */}
         {showSuspensionModal && targetForRequest && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4">
-            <div className="bg-white rounded-3xl p-6 max-w-md w-full shadow-2xl border border-slate-200 space-y-4">
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-3 sm:p-4">
+            <div className="bg-white rounded-2xl sm:rounded-3xl p-4 sm:p-6 w-[95vw] max-w-md max-h-[90vh] overflow-y-auto shadow-2xl border border-slate-200 space-y-4">
               <div className="flex items-center justify-between pb-3 border-b border-slate-100">
                 <h3 className="font-bold text-slate-900 text-base flex items-center gap-2">
                   <Clock className="w-4 h-4 text-blue-700" />
@@ -1523,7 +1523,8 @@ export default function ExecutiveDashboard() {
                 <button
                   type="button"
                   onClick={() => setShowSuspensionModal(false)}
-                  className="text-slate-400 hover:text-slate-600 text-sm font-bold"
+                  className="min-w-[40px] min-h-[40px] flex items-center justify-center rounded-xl text-slate-400 hover:text-slate-600 hover:bg-slate-100 text-sm font-bold transition-colors cursor-pointer"
+                  aria-label="Close"
                 >
                   ✕
                 </button>
@@ -1555,7 +1556,7 @@ export default function ExecutiveDashboard() {
                     required
                     value={suspensionReason}
                     onChange={(e) => setSuspensionReason(e.target.value)}
-                    className="w-full px-3 py-2 rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-600 text-xs"
+                    className="w-full px-3 py-2 rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-600 text-xs sm:text-sm"
                     placeholder={language === "bn" ? "স্থগিতের যৌক্তিক কারণ উল্লেখ করুন..." : "Enter justification for suspension..."}
                   />
                 </div>
@@ -1566,18 +1567,18 @@ export default function ExecutiveDashboard() {
                     : "* Department officers submit recommendations. Suspension will be enforced upon Super Admin approval."}
                 </div>
 
-                <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
+                <div className="flex flex-col-reverse sm:flex-row items-center justify-end gap-2 pt-3 border-t border-slate-100">
                   <button
                     type="button"
                     onClick={() => setShowSuspensionModal(false)}
-                    className="px-4 py-2 rounded-xl border border-slate-300 font-medium text-slate-700 hover:bg-slate-100"
+                    className="w-full sm:w-auto min-h-[44px] px-4 py-2 rounded-xl border border-slate-300 font-semibold text-slate-700 hover:bg-slate-100 transition-colors flex items-center justify-center cursor-pointer"
                   >
                     {t.common.cancel}
                   </button>
                   <button
                     type="submit"
                     disabled={submittingRequest}
-                    className="px-4 py-2 rounded-xl bg-blue-700 hover:bg-blue-800 text-white font-semibold disabled:opacity-50 flex items-center gap-1.5"
+                    className="w-full sm:w-auto min-h-[44px] px-5 py-2 rounded-xl bg-blue-700 hover:bg-blue-800 text-white font-bold disabled:opacity-50 flex items-center justify-center gap-1.5 transition-all shadow-xs cursor-pointer"
                   >
                     {submittingRequest
                       ? (language === "bn" ? "আবেদন পাঠানো হচ্ছে..." : "Submitting...")

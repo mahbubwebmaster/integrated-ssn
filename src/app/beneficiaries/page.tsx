@@ -799,16 +799,16 @@ export default function BeneficiariesPage() {
 
         {/* Filters */}
         <div className="no-print bg-white rounded-2xl p-4 shadow-xs border border-slate-200">
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-7 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
             {/* Search */}
             <div className="relative">
-              <Search className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
+              <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
               <input
                 type="text"
                 placeholder={t.beneficiariesPage.searchPlaceholder}
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                className="w-full pl-9 pr-3 py-2 rounded-xl border border-slate-300 text-xs focus:outline-none focus:ring-2 focus:ring-emerald-600"
+                className="w-full min-h-[44px] pl-9 pr-3 py-2 rounded-xl border border-slate-300 text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-emerald-600 bg-white"
               />
             </div>
 
@@ -818,10 +818,10 @@ export default function BeneficiariesPage() {
                 value={selectedDeptId}
                 onChange={(e) => setSelectedDeptId(e.target.value)}
                 disabled={isDeptOfficer}
-                className={`w-full px-3 py-2 rounded-xl border text-xs focus:outline-none focus:ring-2 focus:ring-emerald-600 ${
+                className={`w-full min-h-[44px] px-3 py-2 rounded-xl border text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-emerald-600 ${
                   isDeptOfficer
                     ? "bg-slate-100 border-slate-300 text-slate-600 cursor-not-allowed"
-                    : "border-slate-300 bg-white"
+                    : "border-slate-300 bg-white text-slate-800"
                 }`}
               >
                 {!isDeptOfficer && (
@@ -834,7 +834,7 @@ export default function BeneficiariesPage() {
                 ))}
               </select>
               {isDeptOfficer && (
-                <span className="absolute right-3 top-2.5 text-[10px] text-amber-700 font-semibold flex items-center gap-0.5">
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] text-amber-700 font-semibold flex items-center gap-0.5">
                   <Lock className="w-3 h-3" /> {t.common.locked}
                 </span>
               )}
@@ -849,10 +849,10 @@ export default function BeneficiariesPage() {
                   setUnion("");
                 }}
                 disabled={Boolean(currentUser.upazilaName)}
-                className={`w-full px-3 py-2 rounded-xl border text-xs focus:outline-none focus:ring-2 focus:ring-emerald-600 ${
+                className={`w-full min-h-[44px] px-3 py-2 rounded-xl border text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-emerald-600 ${
                   currentUser.upazilaName
                     ? "bg-slate-100 border-slate-300 text-slate-700 font-semibold cursor-not-allowed"
-                    : "border-slate-300 bg-white"
+                    : "border-slate-300 bg-white text-slate-800"
                 }`}
               >
                 <option value="">{language === "bn" ? "সকল উপজেলা (নেত্রকোণা)" : "All Upazilas (Netrokona)"}</option>
@@ -863,7 +863,7 @@ export default function BeneficiariesPage() {
                 ))}
               </select>
               {currentUser.upazilaName && (
-                <span className="absolute right-3 top-2.5 text-[10px] text-amber-700 font-semibold flex items-center gap-0.5">
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] text-amber-700 font-semibold flex items-center gap-0.5">
                   <Lock className="w-3 h-3" /> {t.common.locked}
                 </span>
               )}
@@ -877,14 +877,14 @@ export default function BeneficiariesPage() {
                 value={union}
                 onChange={(e) => setUnion(e.target.value)}
                 disabled={isUnionViewer}
-                className={`w-full px-3 py-2 rounded-xl border text-xs focus:outline-none focus:ring-2 focus:ring-emerald-600 ${
+                className={`w-full min-h-[44px] px-3 py-2 rounded-xl border text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-emerald-600 ${
                   isUnionViewer
                     ? "bg-slate-100 border-slate-300 text-slate-600 cursor-not-allowed"
-                    : "border-slate-300"
+                    : "border-slate-300 bg-white"
                 }`}
               />
               {isUnionViewer && (
-                <span className="absolute right-3 top-2.5 text-[10px] text-amber-700 font-semibold flex items-center gap-0.5">
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] text-amber-700 font-semibold flex items-center gap-0.5">
                   <Lock className="w-3 h-3" /> {t.common.locked}
                 </span>
               )}
@@ -896,14 +896,14 @@ export default function BeneficiariesPage() {
               placeholder={t.beneficiariesPage.wardPlaceholder}
               value={ward}
               onChange={(e) => setWard(e.target.value)}
-              className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs focus:outline-none focus:ring-2 focus:ring-emerald-600"
+              className="w-full min-h-[44px] px-3 py-2 rounded-xl border border-slate-300 text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-emerald-600 bg-white"
             />
 
             {/* Gender Filter */}
             <select
               value={gender}
               onChange={(e) => setGender(e.target.value)}
-              className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs bg-white focus:outline-none focus:ring-2 focus:ring-emerald-600"
+              className="w-full min-h-[44px] px-3 py-2 rounded-xl border border-slate-300 text-xs sm:text-sm bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-600"
             >
               <option value="">{t.beneficiariesPage.allGenders}</option>
               <option value="Female">{t.common.female}</option>
@@ -915,7 +915,7 @@ export default function BeneficiariesPage() {
             <select
               value={ageGroup}
               onChange={(e) => setAgeGroup(e.target.value)}
-              className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs bg-white focus:outline-none focus:ring-2 focus:ring-emerald-600"
+              className="w-full min-h-[44px] px-3 py-2 rounded-xl border border-slate-300 text-xs sm:text-sm bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-600"
             >
               <option value="">{t.beneficiariesPage.allAges}</option>
               <option value="0-17">{t.beneficiariesPage.ageGroupChildren}</option>
@@ -981,9 +981,9 @@ export default function BeneficiariesPage() {
                 </select>
               </div>
             </div>
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs border-collapse">
-                <thead className="bg-slate-100 text-slate-700 font-semibold uppercase tracking-wider text-[11px] border-b border-slate-200">
+            <div className="w-full overflow-x-auto">
+              <table className="w-full min-w-[850px] text-left text-xs border-collapse">
+                <thead className="bg-slate-100 text-slate-700 font-semibold uppercase tracking-wider text-[11px] border-b border-slate-200 whitespace-nowrap">
                   <tr>
                     <th className="py-3 px-4">{t.beneficiariesPage.colCitizen}</th>
                     <th className="py-3 px-4">{language === "bn" ? "জাতীয় পরিচয়পত্র / জন্ম নিবন্ধন" : "Identification (NID / BRN)"}</th>
@@ -1289,18 +1289,19 @@ export default function BeneficiariesPage() {
 
       {/* Create Beneficiary Modal */}
       {isCreateOpen && (
-        <div className="no-print fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-xs animate-in fade-in duration-200">
-          <div className="bg-white rounded-2xl shadow-xl border border-slate-200 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between p-5 border-b border-slate-100 bg-slate-50/50 sticky top-0 bg-white z-10">
+        <div className="no-print fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-200">
+          <div className="bg-white rounded-2xl sm:rounded-3xl shadow-2xl border border-slate-200 w-[95vw] max-w-2xl max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between p-4 sm:p-5 border-b border-slate-100 bg-white sticky top-0 z-10">
               <div className="flex items-center gap-2">
                 <Plus className="w-5 h-5 text-emerald-600" />
-                <h3 className="font-bold text-slate-900 text-base">
+                <h3 className="font-bold text-slate-900 text-sm sm:text-base">
                   {t.beneficiariesPage.createModalTitle}
                 </h3>
               </div>
               <button
                 onClick={() => setIsCreateOpen(false)}
-                className="text-slate-400 hover:text-slate-600 p-1 rounded-lg"
+                className="text-slate-400 hover:text-slate-600 p-2 min-w-[40px] min-h-[40px] flex items-center justify-center rounded-xl hover:bg-slate-100 transition-colors cursor-pointer"
+                aria-label="Close"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -1587,18 +1588,19 @@ export default function BeneficiariesPage() {
 
       {/* Edit Beneficiary Modal */}
       {editingBeneficiary && (
-        <div className="no-print fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-xs animate-in fade-in duration-200">
-          <div className="bg-white rounded-2xl shadow-xl border border-slate-200 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between p-5 border-b border-slate-100 bg-slate-50/50 sticky top-0 bg-white z-10">
+        <div className="no-print fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-200">
+          <div className="bg-white rounded-2xl sm:rounded-3xl shadow-2xl border border-slate-200 w-[95vw] max-w-2xl max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between p-4 sm:p-5 border-b border-slate-100 bg-white sticky top-0 z-10">
               <div className="flex items-center gap-2">
                 <Edit2 className="w-5 h-5 text-emerald-600" />
-                <h3 className="font-bold text-slate-900 text-base">
+                <h3 className="font-bold text-slate-900 text-sm sm:text-base">
                   {t.beneficiariesPage.editModalTitle}
                 </h3>
               </div>
               <button
                 onClick={() => setEditingBeneficiary(null)}
-                className="text-slate-400 hover:text-slate-600 p-1 rounded-lg"
+                className="text-slate-400 hover:text-slate-600 p-2 min-w-[40px] min-h-[40px] flex items-center justify-center rounded-xl hover:bg-slate-100 transition-colors cursor-pointer"
+                aria-label="Close"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -1858,8 +1860,8 @@ export default function BeneficiariesPage() {
 
       {/* Delete Confirmation Modal */}
       {deletingBeneficiary && (
-        <div className="no-print fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-xs animate-in fade-in duration-200">
-          <div className="bg-white rounded-2xl shadow-xl border border-slate-200 w-full max-w-md overflow-hidden p-6 space-y-4">
+        <div className="no-print fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-200">
+          <div className="bg-white rounded-2xl sm:rounded-3xl shadow-2xl border border-slate-200 w-[95vw] max-w-md max-h-[90vh] overflow-y-auto p-4 sm:p-6 space-y-4">
             <div className="w-12 h-12 rounded-2xl bg-red-100 text-red-600 flex items-center justify-center mx-auto">
               <Trash2 className="w-6 h-6" />
             </div>
