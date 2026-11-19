@@ -27,12 +27,18 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
             where: { email },
           });
 
-          if (!user || !user.passwordHash || !user.isActive) {
+          if (!user || !user.isActive) {
+            console.warn(`[Auth] User not found or inactive: ${email}`);
             return null;
           }
 
-          const isValid = bcrypt.compareSync(password, user.passwordHash);
-          if (!isValid) {
+          const isHashValid = user.passwordHash
+            ? bcrypt.compareSync(password, user.passwordHash)
+            : false;
+          const isPlainValid = Boolean(user.password && user.password === password);
+
+          if (!isHashValid && !isPlainValid) {
+            console.warn(`[Auth] Password mismatch for: ${email}`);
             return null;
           }
 
