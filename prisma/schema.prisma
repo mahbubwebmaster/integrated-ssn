@@ -1,0 +1,251 @@
+// Prisma schema for Social Safety Net Program (SSNP) Data Redundancy & Deduplication System
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+model User {
+  id                  String              @id @default(cuid())
+  name                String
+  designation         String?             // e.g. "উপজেলা নির্বাহী অফিসার", "জেলা প্রশাসক", "মহাপরিচালক (ডিজি)"
+  email               String              @unique
+  password            String?             // legacy/compat
+  passwordHash        String              @default("240be518fabd2724ddb6f04eeb1da5967448d7e831c08c8fa822809f74c720a9")
+  role                String              // "SUPER_ADMIN", "UPAZILA_ADMIN", "DEPT_OFFICER", "UNION_VIEWER"
+  phone               String?
+  phoneVerified       Boolean             @default(false)
+  image               String?
+  isEmailVerified     Boolean             @default(false)
+  departmentId        String?
+  department          Department?         @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+  unionName           String?
+  district            String?             @default("নেত্রকোণা")
+  upazilaName         String?             // e.g. "নেত্রকোণা সদর", "কেন্দুয়া", etc. Null for DC / District officers
+  wardNo              String?
+  isActive            Boolean             @default(true)
+  uploadedEnrollments Enrollment[]        @relation("UploadedEnrollments")
+  uploadBatches       UploadBatch[]
+  auditLogs           AuditLog[]
+  suspensionRequests  SuspensionRequest[]
+  requestedRemovalRequests RemovalRequest[] @relation("RequestedRemovalRequests")
+  reviewedRemovalRequests  RemovalRequest[] @relation("ReviewedRemovalRequests")
+  createdAt           DateTime            @default(now())
+  updatedAt           DateTime            @updatedAt
+
+  @@index([role])
+  @@index([departmentId])
+  @@index([unionName])
+  @@index([district, upazilaName])
+}
+
+model AccessRole {
+  id                        String   @id @default(cuid())
+  key                       String   @unique // e.g. "SUPER_ADMIN", "DEPT_OFFICER", "UNION_VIEWER", or custom
+  nameEn                    String
+  nameBn                    String
+  descriptionEn             String   @default("")
+  descriptionBn             String   @default("")
+  badgeColor                String   @default("bg-slate-100 text-slate-900 border-slate-300")
+  isSystem                  Boolean  @default(false) // true for the 3 built-in roles; cannot be deleted
+  canViewAllDepartments     Boolean  @default(false)
+  canUploadExcel            Boolean  @default(false)
+  canUploadAnyDepartment    Boolean  @default(false)
+  canViewDetailedDeduplication Boolean @default(false)
+  canDirectlySuspend        Boolean  @default(false)
+  canRequestSuspension      Boolean  @default(false)
+  canManageUsersAndDepts    Boolean  @default(false)
+  canExportReports          Boolean  @default(false)
+  canManageSchemes          Boolean  @default(false)
+  canEditBeneficiaries      Boolean  @default(false)
+  canDeleteBeneficiaries    Boolean  @default(false)
+  createdAt                 DateTime @default(now())
+  updatedAt                 DateTime @updatedAt
+}
+
+model Department {
+  id              String           @id @default(cuid())
+  name            String           @unique
+  nameBn          String?          // দপ্তরের নাম (বাংলা)
+  nameEn          String?          // Department Name (English)
+  schemes         Scheme[]
+  users           User[]
+  uploadBatches   UploadBatch[]
+  removalRequests RemovalRequest[]
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+}
+
+model Scheme {
+  id                   String        @id @default(cuid())
+  departmentId         String
+  name                 String
+  nameBn               String?       // কর্মসূচির নাম (বাংলা)
+  nameEn               String?       // Scheme Name (English)
+  monthlyAmount        Float         // Normalized monthly financial equivalent in BDT
+  frequency            String        // Monthly, Quarterly, 6 Monthly, Yearly, One-time
+  benefitType          String        @default("CASH") // CASH, COMMODITY, HYBRID
+  commodityName        String?       // e.g. চাল (Rice), গম (Wheat), সার (Fertilizer)
+  commodityNameBn      String?       // পণ্যের নাম (বাংলা)
+  commodityNameEn      String?       // Commodity Name (English)
+  commodityQuantity    Float?        // e.g. 30
+  commodityUnit        String?       // e.g. কেজি (kg), বস্তা (bag), প্যাকেট (packet)
+  commodityUnitBn      String?       // একক (বাংলা)
+  commodityUnitEn      String?       // Unit (English)
+  commodityMarketValue Float?        // Estimated market value in BDT per disbursement event
+  cashAmount           Float?        // Cash amount in BDT per disbursement event
+  description          String?
+  department           Department    @relation(fields: [departmentId], references: [id], onDelete: Cascade)
+  enrollments          Enrollment[]
+  uploadBatches        UploadBatch[]
+  createdAt            DateTime      @default(now())
+  updatedAt            DateTime      @updatedAt
+
+  @@index([departmentId])
+  @@index([benefitType])
+}
+
+model Beneficiary {
+  id              String           @id @default(cuid())
+  nid             String?
+  brn             String?          // Birth Registration Number
+  fullName        String
+  nameBn          String?          // সুবিধাভোগীর নাম (বাংলা)
+  nameEn          String?          // সুবিধাভোগীর নাম (ইংরেজি)
+  fatherName      String?          // পিতার নাম (শুধুমাত্র বাংলা)
+  guardianName    String
+  gender          String           // Male, Female, Other
+  dateOfBirth     DateTime?        // জন্ম তারিখ
+  mobile          String?
+  district        String           @default("নেত্রকোণা")
+  upazilaName     String           @default("নেত্রকোণা সদর")
+  unionName       String
+  wardNo          String
+  enrollments     Enrollment[]
+  removalRequests RemovalRequest[]
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+
+  @@index([nid])
+  @@index([brn])
+  @@index([district, upazilaName])
+  @@index([unionName, wardNo])
+  @@index([gender])
+  @@index([dateOfBirth])
+}
+
+model Enrollment {
+  id                 String              @id @default(cuid())
+  beneficiaryId      String
+  schemeId           String
+  cardNumber         String?
+  startDate          DateTime
+  status             String              // Active, Flagged, Suspended
+  uploadedBatchId    String?
+  uploadedBatch      UploadBatch?        @relation(fields: [uploadedBatchId], references: [id], onDelete: SetNull)
+  uploadedByUserId   String?
+  uploadedByUser     User?               @relation("UploadedEnrollments", fields: [uploadedByUserId], references: [id], onDelete: SetNull)
+  beneficiary        Beneficiary         @relation(fields: [beneficiaryId], references: [id], onDelete: Cascade)
+  scheme             Scheme              @relation(fields: [schemeId], references: [id], onDelete: Cascade)
+  suspensionRequests SuspensionRequest[]
+  removalRequest     RemovalRequest?
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+
+  @@index([beneficiaryId])
+  @@index([schemeId])
+  @@index([status])
+  @@index([uploadedBatchId])
+  @@index([uploadedByUserId])
+}
+
+model SuspensionRequest {
+  id            String     @id @default(cuid())
+  enrollmentId  String
+  enrollment    Enrollment @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
+  requestedById String
+  requestedBy   User       @relation(fields: [requestedById], references: [id], onDelete: Cascade)
+  reason        String
+  status        String     @default("PENDING") // PENDING, APPROVED, REJECTED
+  reviewedAt    DateTime?
+  reviewedBy    String?
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+
+  @@index([enrollmentId])
+  @@index([requestedById])
+  @@index([status])
+}
+
+model RemovalRequest {
+  id                String      @id @default(cuid())
+  enrollmentId      String      @unique
+  enrollment        Enrollment  @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
+  beneficiaryId     String
+  beneficiary       Beneficiary @relation(fields: [beneficiaryId], references: [id], onDelete: Cascade)
+  departmentId      String
+  department        Department  @relation(fields: [departmentId], references: [id], onDelete: Cascade)
+  requestedByUserId String
+  requestedByUser   User        @relation("RequestedRemovalRequests", fields: [requestedByUserId], references: [id], onDelete: Cascade)
+  requestReason     String
+  status            String      @default("PENDING") // PENDING, APPROVED, REJECTED
+  reviewedByUserId  String?
+  reviewedByUser    User?       @relation("ReviewedRemovalRequests", fields: [reviewedByUserId], references: [id], onDelete: SetNull)
+  adminComment      String?
+  district          String?     @default("নেত্রকোণা")
+  upazilaName       String?
+  reviewedAt        DateTime?
+  createdAt         DateTime    @default(now())
+
+  @@index([enrollmentId])
+  @@index([beneficiaryId])
+  @@index([departmentId])
+  @@index([requestedByUserId])
+  @@index([status])
+  @@index([district, upazilaName])
+}
+
+model UploadBatch {
+  id               String       @id @default(cuid())
+  batchCode        String       @unique // e.g., "BATCH-2026-001"
+  fileName         String
+  departmentId     String
+  schemeId         String
+  totalRecords     Int
+  uploadedByUserId String
+  district         String?      @default("নেত্রকোণা")
+  upazilaName      String?
+  status           String       @default("ACTIVE") // "ACTIVE", "ROLLED_BACK"
+  createdAt        DateTime     @default(now())
+  department       Department   @relation(fields: [departmentId], references: [id], onDelete: Cascade)
+  scheme           Scheme       @relation(fields: [schemeId], references: [id], onDelete: Cascade)
+  uploadedByUser   User         @relation(fields: [uploadedByUserId], references: [id], onDelete: Cascade)
+  enrollments      Enrollment[]
+
+  @@index([departmentId])
+  @@index([schemeId])
+  @@index([uploadedByUserId])
+  @@index([status])
+  @@index([district, upazilaName])
+  @@index([createdAt])
+}
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  actionType String   // "BATCH_UPLOAD", "BATCH_ROLLBACK", "SCHEME_SUSPENDED", "DUPLICATE_VERIFIED", "USER_CREATED"
+  entityId   String?  // e.g., batchId or beneficiaryId
+  details    String   // human-readable summary in Bengali/English, e.g., "Rolled back 450 records from old_age_v2.xlsx"
+  ipAddress  String?
+  createdAt  DateTime @default(now())
+
+  @@index([userId])
+  @@index([actionType])
+  @@index([entityId])
+  @@index([createdAt])
+}
