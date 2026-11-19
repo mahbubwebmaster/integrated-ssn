@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { Hind_Siliguri, Geist_Mono } from "next/font/google";
 import "./globals.css";
-import { Navbar } from "@/components/Navbar";
+import { AppShell } from "@/components/AppShell";
 import { Providers } from "@/components/Providers";
 
 const hindSiliguri = Hind_Siliguri({
@@ -34,18 +34,7 @@ export default function RootLayout({
     >
       <body className="min-h-full flex flex-col bg-slate-50 text-slate-900 font-sans">
         <Providers>
-          <Navbar />
-          <main className="flex-1">{children}</main>
-          <footer className="border-t border-slate-200 bg-white py-6 text-center text-xs text-slate-500">
-            <div className="max-w-7xl mx-auto px-4">
-              <p className="font-medium text-slate-700">
-                Integrated Social Safety Net Program (SSNP) Data Redundancy & Deduplication Management System
-              </p>
-              <p className="mt-1 text-slate-500">
-                Local Government Division (LGD) • Upazila Administration • Role & Permission Matrix Structure
-              </p>
-            </div>
-          </footer>
+          <AppShell>{children}</AppShell>
         </Providers>
       </body>
     </html>
