@@ -5,7 +5,12 @@ import { NETROKONA_UPAZILAS, NETROKONA_DISTRICT } from "@/lib/netrokona";
 
 export async function GET(request: Request) {
   try {
-    await ensureDefaultMasterData();
+    try {
+      await ensureDefaultMasterData();
+    } catch (e) {
+      // Graceful fallback if database connection is pending initialization
+      console.warn("ensureDefaultMasterData skipped or pending DB initialization:", e);
+    }
 
     const { searchParams } = new URL(request.url);
     const upazilaParam = searchParams.get("upazila")?.trim() || "";

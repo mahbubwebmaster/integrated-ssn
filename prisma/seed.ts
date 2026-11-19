@@ -1,6 +1,5 @@
-import path from "path";
 import bcrypt from "bcryptjs";
-import { PrismaBetterSqlite3 } from "@prisma/adapter-better-sqlite3";
+import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "../src/generated/prisma/client";
 import { NETROKONA_UPAZILAS, NETROKONA_DISTRICT } from "../src/lib/netrokona";
 
@@ -8,8 +7,8 @@ function hashPassword(password: string): string {
   return bcrypt.hashSync(password, 10);
 }
 
-const dbUrl = process.env.DATABASE_URL || `file:${path.resolve(process.cwd(), "dev.db")}`;
-const adapter = new PrismaBetterSqlite3({ url: dbUrl });
+const dbUrl = process.env.DATABASE_URL!;
+const adapter = new PrismaPg(dbUrl);
 const prisma = new PrismaClient({ adapter });
 
 async function main() {
