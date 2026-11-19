@@ -168,6 +168,16 @@ function LoginForm() {
 
           <button
             type="button"
+            onClick={() => handleQuickFill("uno@upazila.gov.bd", "uno123")}
+            className="p-2.5 text-left rounded-xl border border-amber-200 bg-amber-50/70 hover:bg-amber-100 transition-colors"
+          >
+            <div className="font-bold text-amber-900 text-[11px]">{language === "bn" ? "উপজেলা এডমিন (ইউএনও)" : "Upazila Admin (UNO)"}</div>
+            <div className="text-[10px] text-amber-700">uno@upazila.gov.bd</div>
+            <div className="text-[9px] text-amber-600 font-mono mt-0.5">Role: UPAZILA_ADMIN</div>
+          </button>
+
+          <button
+            type="button"
             onClick={() => handleQuickFill("dss@upazila.gov.bd", "admin123")}
             className="p-2.5 text-left rounded-xl border border-blue-200 bg-blue-50/70 hover:bg-blue-100 transition-colors"
           >
@@ -185,19 +195,9 @@ function LoginForm() {
             <div className="text-[10px] text-pink-700">dwa@upazila.gov.bd</div>
             <div className="text-[9px] text-pink-600 font-mono mt-0.5">Role: DEPT_OFFICER</div>
           </button>
-
-          <button
-            type="button"
-            onClick={() => handleQuickFill("bahadurpur@upazila.gov.bd", "admin123")}
-            className="p-2.5 text-left rounded-xl border border-emerald-200 bg-emerald-50/70 hover:bg-emerald-100 transition-colors"
-          >
-            <div className="font-bold text-emerald-900 text-[11px]">{t.login.btnDemoUnion}</div>
-            <div className="text-[10px] text-emerald-700">bahadurpur@upazila.gov.bd</div>
-            <div className="text-[9px] text-emerald-600 font-mono mt-0.5">Role: UNION_VIEWER</div>
-          </button>
         </div>
         <p className="text-[10px] text-slate-400 text-center pt-1">
-          {t.login.defaultPass} <code className="font-mono font-bold text-slate-600">admin123</code>
+          {language === "bn" ? "ইউএনও পাসওয়ার্ড: uno123 • অন্যান্যদের পাসওয়ার্ড: admin123" : "UNO Password: uno123 • Others: admin123"}
         </p>
       </div>
     </div>
