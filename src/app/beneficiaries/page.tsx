@@ -163,6 +163,20 @@ export default function BeneficiariesPage() {
   const [deletingBeneficiary, setDeletingBeneficiary] = useState<Beneficiary | null>(null);
   const [deleteSubmitting, setDeleteSubmitting] = useState(false);
 
+  const unionsForCreate = useMemo(() => {
+    const matched = NETROKONA_UPAZILAS.find(
+      (u) => u.nameBn === createForm.upazilaName || u.nameEn === createForm.upazilaName
+    );
+    return matched ? matched.unions : [];
+  }, [createForm.upazilaName]);
+
+  const unionsForEdit = useMemo(() => {
+    const matched = NETROKONA_UPAZILAS.find(
+      (u) => u.nameBn === editForm.upazilaName || u.nameEn === editForm.upazilaName
+    );
+    return matched ? matched.unions : [];
+  }, [editForm.upazilaName]);
+
   // Success Feedback
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
@@ -478,6 +492,8 @@ export default function BeneficiariesPage() {
           nid: editForm.nid.trim() || null,
           brn: editForm.brn.trim() || null,
           mobile: editForm.mobile.trim() || null,
+          district: editForm.district.trim() || "নেত্রকোণা",
+          upazilaName: editForm.upazilaName.trim() || "নেত্রকোণা সদর",
           unionName: editForm.unionName.trim(),
           wardNo: editForm.wardNo.trim(),
           enrollmentId: editForm.enrollmentId || undefined,
@@ -551,6 +567,8 @@ export default function BeneficiariesPage() {
           nid: createForm.nid.trim() || null,
           brn: createForm.brn.trim() || null,
           mobile: createForm.mobile.trim() || null,
+          district: createForm.district.trim() || "নেত্রকোণা",
+          upazilaName: createForm.upazilaName.trim() || "নেত্রকোণা সদর",
           unionName: createForm.unionName.trim(),
           wardNo: createForm.wardNo.trim(),
           schemeId: createForm.schemeId || null,
@@ -1419,6 +1437,52 @@ export default function BeneficiariesPage() {
                   />
                 </div>
 
+                {/* District */}
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    {t.beneficiariesPage.fieldDistrict} *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={createForm.district}
+                    onChange={(e) => setCreateForm({ ...createForm, district: e.target.value })}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs bg-white focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                    placeholder="যেমন: নেত্রকোণা"
+                  />
+                </div>
+
+                {/* Upazila */}
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    {t.beneficiariesPage.fieldUpazila} *
+                  </label>
+                  <select
+                    required
+                    value={createForm.upazilaName}
+                    onChange={(e) => {
+                      const newUp = e.target.value;
+                      setCreateForm({
+                        ...createForm,
+                        upazilaName: newUp,
+                        unionName: "",
+                      });
+                    }}
+                    disabled={!isSuperAdmin && Boolean(currentUser.upazilaName)}
+                    className={`w-full px-3 py-2 rounded-xl border text-xs bg-white font-medium focus:ring-2 focus:ring-emerald-500 focus:outline-none ${
+                      !isSuperAdmin && currentUser.upazilaName
+                        ? "bg-slate-100 text-slate-600 cursor-not-allowed border-slate-300"
+                        : "border-slate-300"
+                    }`}
+                  >
+                    {NETROKONA_UPAZILAS.map((up) => (
+                      <option key={up.key} value={up.nameBn}>
+                        {language === "bn" ? up.nameBn : up.nameEn}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
                 {/* Union */}
                 <div>
                   <label className="block text-xs font-bold text-slate-700 mb-1">
@@ -1427,14 +1491,20 @@ export default function BeneficiariesPage() {
                   <input
                     type="text"
                     required
+                    list="create-unions-list"
                     value={createForm.unionName}
                     onChange={(e) => setCreateForm({ ...createForm, unionName: e.target.value })}
                     disabled={isUnionViewer}
-                    placeholder="যেমন: ভেলুমিয়া"
+                    placeholder="ইউনিয়নের নাম লিখুন বা তালিকা থেকে বাছুন"
                     className={`w-full px-3 py-2 rounded-xl border text-xs focus:ring-2 focus:ring-emerald-500 focus:outline-none ${
                       isUnionViewer ? "bg-slate-100 cursor-not-allowed border-slate-300" : "border-slate-300"
                     }`}
                   />
+                  <datalist id="create-unions-list">
+                    {unionsForCreate.map((u) => (
+                      <option key={u} value={u} />
+                    ))}
+                  </datalist>
                 </div>
 
                 {/* Ward */}
@@ -1662,6 +1732,52 @@ export default function BeneficiariesPage() {
                   />
                 </div>
 
+                {/* District */}
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    {t.beneficiariesPage.fieldDistrict} *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={editForm.district}
+                    onChange={(e) => setEditForm({ ...editForm, district: e.target.value })}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs bg-white focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                    placeholder="যেমন: নেত্রকোণা"
+                  />
+                </div>
+
+                {/* Upazila */}
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    {t.beneficiariesPage.fieldUpazila} *
+                  </label>
+                  <select
+                    required
+                    value={editForm.upazilaName}
+                    onChange={(e) => {
+                      const newUp = e.target.value;
+                      setEditForm({
+                        ...editForm,
+                        upazilaName: newUp,
+                        unionName: "",
+                      });
+                    }}
+                    disabled={!isSuperAdmin && Boolean(currentUser.upazilaName)}
+                    className={`w-full px-3 py-2 rounded-xl border text-xs bg-white font-medium focus:ring-2 focus:ring-emerald-500 focus:outline-none ${
+                      !isSuperAdmin && currentUser.upazilaName
+                        ? "bg-slate-100 text-slate-600 cursor-not-allowed border-slate-300"
+                        : "border-slate-300"
+                    }`}
+                  >
+                    {NETROKONA_UPAZILAS.map((up) => (
+                      <option key={up.key} value={up.nameBn}>
+                        {language === "bn" ? up.nameBn : up.nameEn}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
                 {/* Union */}
                 <div>
                   <label className="block text-xs font-bold text-slate-700 mb-1">
@@ -1670,6 +1786,7 @@ export default function BeneficiariesPage() {
                   <input
                     type="text"
                     required
+                    list="edit-unions-list"
                     value={editForm.unionName}
                     onChange={(e) => setEditForm({ ...editForm, unionName: e.target.value })}
                     disabled={isUnionViewer}
@@ -1677,6 +1794,11 @@ export default function BeneficiariesPage() {
                       isUnionViewer ? "bg-slate-100 cursor-not-allowed border-slate-300" : "border-slate-300"
                     }`}
                   />
+                  <datalist id="edit-unions-list">
+                    {unionsForEdit.map((u) => (
+                      <option key={u} value={u} />
+                    ))}
+                  </datalist>
                 </div>
 
                 {/* Ward */}

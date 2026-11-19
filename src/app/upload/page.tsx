@@ -34,6 +34,7 @@ import {
   FREQUENCY_OPTIONS,
   BENEFIT_TYPE_OPTIONS,
 } from "@/lib/scheme-calc";
+import { NETROKONA_UPAZILAS } from "@/lib/netrokona";
 
 interface Department {
   id: string;
@@ -120,6 +121,24 @@ const SYSTEM_FIELD_DEFS: SystemFieldDef[] = [
     aliases: ["gender", "sex", "লিঙ্গ"],
   },
   {
+    key: "district",
+    labelBn: "জেলা",
+    labelEn: "District",
+    required: false,
+    descBn: "সুবিধাভোগীর জেলা (যেমন: নেত্রকোণা)",
+    descEn: "Beneficiary district (e.g. Netrokona)",
+    aliases: ["district", "zila", "জেলা", "জেলার নাম", "সুবিধাভোগীর জেলা"],
+  },
+  {
+    key: "upazilaName",
+    labelBn: "উপজেলা",
+    labelEn: "Upazila",
+    required: false,
+    descBn: "সুবিধাভোগীর উপজেলা (যেমন: নেত্রকোণা সদর, কেন্দুয়া ইত্যাদি)",
+    descEn: "Beneficiary Upazila (e.g. Netrokona Sadar, Kendua etc.)",
+    aliases: ["upazila", "upazila_name", "upazilaname", "thana", "উপজেলা", "উপজেলার নাম", "থানা"],
+  },
+  {
     key: "unionName",
     labelBn: "ইউনিয়ন পরিষদ",
     labelEn: "Union Parishad",
@@ -165,6 +184,8 @@ interface CleanedRow {
   nid?: string;
   brn?: string;
   mobile?: string;
+  district?: string;
+  upazilaName?: string;
   unionName: string;
   wardNo: string;
   cardNumber?: string;
@@ -215,6 +236,8 @@ export default function BulkUploadPage() {
   const [loadingDepts, setLoadingDepts] = useState(true);
   const [selectedDeptId, setSelectedDeptId] = useState<string>("");
   const [selectedSchemeId, setSelectedSchemeId] = useState<string>("");
+  const [selectedDistrict, setSelectedDistrict] = useState("নেত্রকোণা");
+  const [selectedUpazila, setSelectedUpazila] = useState(currentUser.upazilaName || "নেত্রকোণা সদর");
 
   // New Scheme Creation Modal
   const [showNewSchemeModal, setShowNewSchemeModal] = useState(false);
@@ -439,6 +462,8 @@ export default function BulkUploadPage() {
       const rawBrn = getVal("brn");
       const guardianName = getVal("guardianName");
       const gender = getVal("gender") || (language === "bn" ? "নারী" : "Female");
+      const district = getVal("district") || selectedDistrict || "নেত্রকোণা";
+      const upazilaName = getVal("upazilaName") || selectedUpazila || "নেত্রকোণা সদর";
       const unionName = getVal("unionName");
       const wardNo = getVal("wardNo");
       const rawMobile = getVal("mobile");
@@ -511,6 +536,8 @@ export default function BulkUploadPage() {
         nid: cleanNid,
         brn: cleanBrn,
         mobile: cleanMobile,
+        district,
+        upazilaName,
         unionName,
         wardNo,
         cardNumber,
@@ -518,7 +545,7 @@ export default function BulkUploadPage() {
         brnValidation,
       };
     });
-  }, [rawRows, columnMapping, language, formatNumber]);
+  }, [rawRows, columnMapping, language, formatNumber, selectedDistrict, selectedUpazila]);
 
   const missingRequiredFields = useMemo(() => {
     return systemFields.filter((f) => f.required && !columnMapping[f.key]);
@@ -550,6 +577,8 @@ export default function BulkUploadPage() {
         nid: r.nid,
         brn: r.brn,
         mobile: r.mobile,
+        district: r.district || selectedDistrict,
+        upazilaName: r.upazilaName || selectedUpazila,
         unionName: r.unionName,
         wardNo: r.wardNo,
         cardNumber: r.cardNumber,
@@ -562,6 +591,8 @@ export default function BulkUploadPage() {
         body: JSON.stringify({
           departmentId: selectedDeptId,
           schemeId: selectedSchemeId,
+          district: selectedDistrict,
+          upazilaName: selectedUpazila,
           records: recordsToSend,
           fileName: file?.name || "upload.xlsx",
           uploadedByUserId: currentUser?.id,
@@ -593,7 +624,9 @@ export default function BulkUploadPage() {
             "জন্ম নিবন্ধন নম্বর": "",
             "পিতা / স্বামীর নাম": "আব্দুল মজিদ",
             লিঙ্গ: "নারী",
-            "ইউনিয়ন পরিষদ": "বাহাদুরপুর",
+            "জেলা": "নেত্রকোণা",
+            "উপজেলা": "নেত্রকোণা সদর",
+            "ইউনিয়ন পরিষদ": "মৌগাতি",
             "ওয়ার্ড নং": "০৩",
             "মোবাইল নম্বর": "01711223344",
             "কার্ড / বই নম্বর": "VWB-2026-001",
@@ -604,7 +637,9 @@ export default function BulkUploadPage() {
             "জন্ম নিবন্ধন নম্বর": "",
             "পিতা / স্বামীর নাম": "মোঃ কফিল উদ্দিন",
             লিঙ্গ: "নারী",
-            "ইউনিয়ন পরিষদ": "বাহাদুরপুর",
+            "জেলা": "নেত্রকোণা",
+            "উপজেলা": "নেত্রকোণা সদর",
+            "ইউনিয়ন পরিষদ": "মৌগাতি",
             "ওয়ার্ড নং": "০১",
             "মোবাইল নম্বর": "01812345678",
             "কার্ড / বই নম্বর": "VWB-2026-002",
@@ -615,7 +650,9 @@ export default function BulkUploadPage() {
             "জন্ম নিবন্ধন নম্বর": "",
             "পিতা / স্বামীর নাম": "মৃত আফসার আলী",
             লিঙ্গ: "পুরুষ",
-            "ইউনিয়ন পরিষদ": "রামপুর",
+            "জেলা": "নেত্রকোণা",
+            "উপজেলা": "কেন্দুয়া",
+            "ইউনিয়ন পরিষদ": "সান্দিকোণা",
             "ওয়ার্ড নং": "০২",
             "মোবাইল নম্বর": "01987654321",
             "কার্ড / বই নম্বর": "OA-2026-045",
@@ -626,7 +663,9 @@ export default function BulkUploadPage() {
             "জন্ম নিবন্ধন নম্বর": "20052692015004567",
             "পিতা / স্বামীর নাম": "রফিকুল ইসলাম",
             লিঙ্গ: "নারী",
-            "ইউনিয়ন পরিষদ": "বাহাদুরপুর",
+            "জেলা": "নেত্রকোণা",
+            "উপজেলা": "দুর্গাপুর",
+            "ইউনিয়ন পরিষদ": "বিরিশিরি",
             "ওয়ার্ড নং": "০৫",
             "মোবাইল নম্বর": "01722334455",
             "কার্ড / বই নম্বর": "MCBP-2026-089",
@@ -637,7 +676,9 @@ export default function BulkUploadPage() {
             "জন্ম নিবন্ধন নম্বর": "",
             "পিতা / স্বামীর নাম": "আব্দুল মজিদ",
             লিঙ্গ: "নারী",
-            "ইউনিয়ন পরিষদ": "বাহাদুরপুর",
+            "জেলা": "নেত্রকোণা",
+            "উপজেলা": "নেত্রকোণা সদর",
+            "ইউনিয়ন পরিষদ": "মৌগাতি",
             "ওয়ার্ড নং": "০৩",
             "মোবাইল নম্বর": "01711223344",
             "কার্ড / বই নম্বর": "VWB-2026-099",
@@ -650,7 +691,9 @@ export default function BulkUploadPage() {
             "Birth Reg No": "",
             "Guardian / Father Name": "Abdul Majid",
             Gender: "Female",
-            Union: "Bahadurpur",
+            District: "Netrokona",
+            Upazila: "Netrokona Sadar",
+            Union: "Mougati",
             "Ward No": "03",
             "Mobile No": "01711223344",
             "Card Number": "VWB-2026-001",
@@ -661,7 +704,9 @@ export default function BulkUploadPage() {
             "Birth Reg No": "",
             "Guardian / Father Name": "Kafil Uddin",
             Gender: "Female",
-            Union: "Bahadurpur",
+            District: "Netrokona",
+            Upazila: "Netrokona Sadar",
+            Union: "Mougati",
             "Ward No": "01",
             "Mobile No": "01812345678",
             "Card Number": "VWB-2026-002",
@@ -672,7 +717,9 @@ export default function BulkUploadPage() {
             "Birth Reg No": "",
             "Guardian / Father Name": "Late Afsar Ali",
             Gender: "Male",
-            Union: "Rampur",
+            District: "Netrokona",
+            Upazila: "Kendua",
+            Union: "Sandikona",
             "Ward No": "02",
             "Mobile No": "01987654321",
             "Card Number": "OA-2026-045",
@@ -683,7 +730,9 @@ export default function BulkUploadPage() {
             "Birth Reg No": "20052692015004567",
             "Guardian / Father Name": "Rafiqul Islam",
             Gender: "Female",
-            Union: "Bahadurpur",
+            District: "Netrokona",
+            Upazila: "Durgapur",
+            Union: "Birishiri",
             "Ward No": "05",
             "Mobile No": "01722334455",
             "Card Number": "MCBP-2026-089",
@@ -694,7 +743,9 @@ export default function BulkUploadPage() {
             "Birth Reg No": "",
             "Guardian / Father Name": "Abdul Majid",
             Gender: "Female",
-            Union: "Bahadurpur",
+            District: "Netrokona",
+            Upazila: "Netrokona Sadar",
+            Union: "Mougati",
             "Ward No": "03",
             "Mobile No": "01711223344",
             "Card Number": "VWB-2026-099",
@@ -909,6 +960,48 @@ export default function BulkUploadPage() {
                       {currentDept?.schemes.map((scheme) => (
                         <option key={scheme.id} value={scheme.id}>
                           {getSchemeName(scheme, language)} — {formatCurrency(scheme.monthlyAmount, language)} ({scheme.frequency})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* District Select */}
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-2">
+                      {t.upload.labelDistrict || "জেলা"}
+                    </label>
+                    <input
+                      type="text"
+                      value={selectedDistrict}
+                      onChange={(e) => setSelectedDistrict(e.target.value)}
+                      placeholder="যেমন: নেত্রকোণা"
+                      className="w-full px-4 py-2.5 rounded-xl border border-slate-300 bg-white text-slate-800 font-medium text-sm focus:outline-none focus:ring-2 focus:ring-emerald-600"
+                    />
+                  </div>
+
+                  {/* Upazila Select */}
+                  <div>
+                    <div className="flex items-center justify-between mb-2">
+                      <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider">
+                        {t.upload.labelUpazila || "উপজেলা"}
+                      </label>
+                      <span className="text-[11px] text-slate-400">
+                        {language === "bn" ? "(ডিফল্ট ব্যাচ উপজেলা)" : "(Default batch upazila)"}
+                      </span>
+                    </div>
+                    <select
+                      value={selectedUpazila}
+                      onChange={(e) => setSelectedUpazila(e.target.value)}
+                      disabled={!isSuperAdmin && Boolean(currentUser.upazilaName)}
+                      className={`w-full px-4 py-2.5 rounded-xl border font-medium text-sm focus:outline-none focus:ring-2 focus:ring-emerald-600 ${
+                        !isSuperAdmin && currentUser.upazilaName
+                          ? "bg-slate-100 text-slate-600 border-slate-300 cursor-not-allowed"
+                          : "bg-white text-slate-800 border-slate-300"
+                      }`}
+                    >
+                      {NETROKONA_UPAZILAS.map((up) => (
+                        <option key={up.key} value={up.nameBn}>
+                          {language === "bn" ? up.nameBn : up.nameEn}
                         </option>
                       ))}
                     </select>
@@ -1189,6 +1282,7 @@ export default function BulkUploadPage() {
                     <th className="py-2.5 px-3">{t.upload.colGender}</th>
                     <th className="py-2.5 px-3">{t.upload.colNid}</th>
                     <th className="py-2.5 px-3">{t.upload.colBrn}</th>
+                    <th className="py-2.5 px-3">{t.upload.colDistrictUpazila || "জেলা ও উপজেলা"}</th>
                     <th className="py-2.5 px-3">{t.upload.colUnionWard}</th>
                     <th className="py-2.5 px-3">{t.upload.colMobile}</th>
                     <th className="py-2.5 px-3">{t.upload.colCard}</th>
@@ -1226,6 +1320,10 @@ export default function BulkUploadPage() {
                         ) : (
                           <span className="text-slate-400 italic">-</span>
                         )}
+                      </td>
+                      <td className="py-2.5 px-3">
+                        <span className="font-medium text-slate-800">{row.upazilaName || selectedUpazila}</span>
+                        <span className="text-[10px] text-slate-400 block">{row.district || selectedDistrict}</span>
                       </td>
                       <td className="py-2.5 px-3">
                         <span className="font-medium text-slate-900">{row.unionName}</span>
