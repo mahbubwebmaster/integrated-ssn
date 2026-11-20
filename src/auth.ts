@@ -49,7 +49,10 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
             designation: user.designation,
             role: user.role,
             phone: user.phone || null,
-            image: user.image || null,
+            image:
+              user.image && !user.image.startsWith("data:") && user.image.length < 256
+                ? user.image
+                : null,
             departmentId: user.departmentId,
             district: user.district,
             districtName: user.districtName || user.district || "নেত্রকোণা",

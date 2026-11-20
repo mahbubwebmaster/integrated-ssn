@@ -36,7 +36,13 @@ export const authConfig = {
         token.id = user.id;
         token.name = user.name;
         token.email = user.email;
-        token.image = user.image || (user as any).image;
+        // Never put base64 or large string in JWT cookie to prevent 494 REQUEST_HEADER_TOO_LARGE
+        token.image =
+          typeof user.image === "string" &&
+          !user.image.startsWith("data:") &&
+          user.image.length < 256
+            ? user.image
+            : null;
         token.phone = (user as any).phone;
         token.designation = (user as any).designation;
         token.role = (user as any).role;
