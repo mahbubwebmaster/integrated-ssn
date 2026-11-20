@@ -476,84 +476,13 @@ export async function PATCH(request: Request) {
 }
 
 export async function DELETE(request: Request) {
-  try {
-    const { searchParams } = new URL(request.url);
-    const id = searchParams.get("id");
-    const departmentId = searchParams.get("departmentId");
-
-    if (!id) {
-      return NextResponse.json(
-        { success: false, error: "Beneficiary ID is required." },
-        { status: 400 }
-      );
-    }
-
-    const beneficiary = await prisma.beneficiary.findUnique({
-      where: { id },
-      include: {
-        enrollments: {
-          include: {
-            scheme: true,
-          },
-        },
-      },
-    });
-
-    if (!beneficiary) {
-      return NextResponse.json(
-        { success: false, error: "Beneficiary record not found." },
-        { status: 404 }
-      );
-    }
-
-    if (departmentId) {
-      // Scoped delete: Delete enrollments under this department
-      const targetEnrollments = beneficiary.enrollments.filter(
-        (e) => e.scheme.departmentId === departmentId
-      );
-
-      if (targetEnrollments.length > 0) {
-        await prisma.enrollment.deleteMany({
-          where: {
-            id: { in: targetEnrollments.map((e) => e.id) },
-          },
-        });
-      }
-
-      // Check if beneficiary has any remaining enrollments
-      const remainingCount = await prisma.enrollment.count({
-        where: { beneficiaryId: id },
-      });
-
-      // If no other enrollments left, delete beneficiary
-      if (remainingCount === 0) {
-        await prisma.beneficiary.delete({
-          where: { id },
-        });
-      }
-
-      return NextResponse.json({
-        success: true,
-        message: "Department enrollments deleted successfully.",
-      });
-    } else {
-      // Unscoped delete (Super Admin): Delete all enrollments and beneficiary
-      await prisma.enrollment.deleteMany({
-        where: { beneficiaryId: id },
-      });
-
-      await prisma.beneficiary.delete({
-        where: { id },
-      });
-
-      return NextResponse.json({
-        success: true,
-        message: "Beneficiary and all associated enrollments deleted successfully.",
-      });
-    }
-  } catch (error: unknown) {
-    console.error("Failed to delete beneficiary:", error);
-    const message = error instanceof Error ? error.message : "Internal Server Error";
-    return NextResponse.json({ success: false, error: message }, { status: 500 });
-  }
+  // Policy rule: Deletion of beneficiary records is strictly prohibited for Upazila Admin, District Admin, and System Admin
+  return NextResponse.json(
+    {
+      success: false,
+      error:
+        "সরকারি নীতিমালা অনুযায়ী উপজেলা এডমিন, জেলা এডমিন বা সিস্টেম এডমিন আইডি থেকে সরাসরি সুবিধাভোগীর ডাটা মুছে ফেলার অনুমতি নেই। তবে প্রয়োজনে তথ্য সম্পাদনা (Edit) করা যাবে অথবা অনুমোদন ইনবক্সের মাধ্যমে ভাতা বাতিলের আবেদন করা যাবে।",
+    },
+    { status: 403 }
+  );
 }

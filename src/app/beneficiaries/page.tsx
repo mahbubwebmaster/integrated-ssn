@@ -1114,7 +1114,7 @@ export default function BeneficiariesPage() {
                     <th className="py-3 px-4">{t.beneficiariesPage.colEnrolledPrograms}</th>
                     <th className="py-3 px-4">{t.dashboard.colTotalReceived}</th>
                     {!isUnionViewer && (
-                      <th className="no-print py-3 px-4 text-right">{t.beneficiariesPage.colActions}</th>
+                      <th className="no-print py-3 px-4 text-right">{language === "bn" ? "সম্পাদনা" : t.beneficiariesPage.colActions}</th>
                     )}
                   </tr>
                 </thead>
@@ -1265,24 +1265,16 @@ export default function BeneficiariesPage() {
                           )}
                         </td>
 
-                        {/* Edit & Delete Action Buttons */}
+                        {/* Edit Action Button Only (Beneficiary deletion prohibited for all admin roles) */}
                         {!isUnionViewer && (
                           <td className="no-print py-3.5 px-4 text-right space-x-1 whitespace-nowrap">
                             <button
                               onClick={() => handleOpenEdit(b)}
                               title={t.beneficiariesPage.btnEdit}
-                              className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-semibold transition-colors cursor-pointer"
+                              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-bold border border-blue-200 transition-colors cursor-pointer shadow-xs"
                             >
                               <Edit2 className="w-3.5 h-3.5" />
                               <span>{t.beneficiariesPage.btnEdit}</span>
-                            </button>
-                            <button
-                              onClick={() => handleOpenDelete(b)}
-                              title={t.beneficiariesPage.btnDelete}
-                              className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-red-50 hover:bg-red-100 text-red-700 text-xs font-semibold transition-colors cursor-pointer"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                              <span>{t.beneficiariesPage.btnDelete}</span>
                             </button>
                           </td>
                         )}
