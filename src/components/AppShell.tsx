@@ -28,6 +28,8 @@ import { useAuth } from "@/context/AuthContext";
 import { useLanguage } from "@/context/LanguageContext";
 import { ROLE_CONFIG } from "@/lib/auth";
 import { UserProfileModal } from "@/components/UserProfileModal";
+import { TermsModal } from "@/components/TermsModal";
+import { BdGovLogo } from "@/components/BdGovLogo";
 
 interface AppShellProps {
   children: React.ReactNode;
@@ -40,6 +42,7 @@ export function AppShell({ children }: AppShellProps) {
 
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [profileModalOpen, setProfileModalOpen] = useState(false);
+  const [termsModalOpen, setTermsModalOpen] = useState(false);
   const [pendingRemovalCount, setPendingRemovalCount] = useState<number>(0);
 
   const isDeptOfficer =
@@ -187,8 +190,8 @@ export function AppShell({ children }: AppShellProps) {
         {/* Brand Header */}
         <div className="p-4 border-b border-slate-800/80 bg-slate-950/60">
           <Link href="/" className="flex items-center gap-3 group">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-600 to-teal-800 flex items-center justify-center text-white shadow-inner font-bold text-lg border border-emerald-400/30 group-hover:scale-105 transition-transform shrink-0">
-              <Building2 className="w-5 h-5 text-emerald-100" />
+            <div className="w-10 h-10 rounded-xl bg-white/10 p-1 flex items-center justify-center border border-white/20 group-hover:scale-105 transition-transform shrink-0 shadow-inner">
+              <BdGovLogo className="w-full h-full" />
             </div>
             <div className="overflow-hidden">
               <div className="font-bold text-sm leading-tight text-white truncate flex items-center gap-1.5">
@@ -386,8 +389,8 @@ export function AppShell({ children }: AppShellProps) {
             </button>
 
             <Link href="/" className="flex items-center gap-2 min-w-0">
-              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-emerald-600 to-teal-800 flex items-center justify-center text-white font-bold shrink-0 shadow-sm border border-emerald-400/30">
-                <Building2 className="w-4 h-4 text-emerald-100" />
+              <div className="w-8 h-8 rounded-lg bg-white/10 p-0.5 flex items-center justify-center shrink-0 shadow-sm border border-white/20">
+                <BdGovLogo className="w-full h-full" />
               </div>
               <div className="truncate">
                 <div className="font-bold text-xs leading-tight text-white truncate">
@@ -450,8 +453,8 @@ export function AppShell({ children }: AppShellProps) {
             {/* Drawer Header */}
             <div className="p-4 border-b border-slate-800 bg-slate-950/70 flex items-center justify-between">
               <div className="flex items-center gap-2.5">
-                <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-emerald-600 to-teal-800 flex items-center justify-center text-white font-bold shrink-0 border border-emerald-400/30">
-                  <Building2 className="w-4 h-4 text-emerald-100" />
+                <div className="w-9 h-9 rounded-xl bg-white/10 p-1 flex items-center justify-center shrink-0 border border-white/20">
+                  <BdGovLogo className="w-full h-full" />
                 </div>
                 <div>
                   <div className="font-bold text-xs text-white">
@@ -645,14 +648,32 @@ export function AppShell({ children }: AppShellProps) {
         <main className="flex-1 w-full min-w-0 max-w-full pt-[82px] lg:pt-11">{children}</main>
 
         {/* Global Footer */}
-        <footer className="no-print border-t border-slate-200 bg-white py-6 text-center text-xs text-slate-500">
-          <div className="max-w-7xl mx-auto px-4">
-            <p className="font-medium text-slate-700">
-              Integrated Social Safety Net Program (SSNP) Data Redundancy & Deduplication Management System
+        <footer className="no-print border-t border-slate-200 bg-white py-6 text-center text-xs text-slate-600">
+          <div className="max-w-7xl mx-auto px-4 space-y-2">
+            <div className="flex items-center justify-center gap-2">
+              <BdGovLogo className="w-5 h-5" />
+              <p className="font-bold text-slate-800 text-xs sm:text-sm">
+                {language === "bn"
+                  ? "সমন্বিত সামাজিক নিরাপত্তা কর্মসূচি (SSNP) ডাটা রিডানড্যান্সি ও ডুপ্লিকেশন ম্যানেজমেন্ট সিস্টেম"
+                  : "Integrated Social Safety Net Program (SSNP) Data Redundancy & Deduplication Management System"}
+              </p>
+            </div>
+            <p className="text-slate-600 font-medium leading-relaxed max-w-4xl mx-auto">
+              All right reserved: Department of Information and Communication Technology (DOICT). Technical Assistance: Upazila ICT Office Kalmakanda, Netrokona.
             </p>
-            <p className="mt-1 text-slate-500">
-              Local Government Division (LGD) • Upazila Administration • Role & Permission Matrix Structure
-            </p>
+            <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 pt-1.5 text-[11px] text-slate-500 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => setTermsModalOpen(true)}
+                className="text-emerald-700 hover:text-emerald-900 font-bold hover:underline transition-colors cursor-pointer"
+              >
+                Terms and Condition
+              </button>
+              <span className="text-slate-300">•</span>
+              <span className="font-semibold text-slate-700">Copyright@2026</span>
+              <span className="text-slate-300">•</span>
+              <span>{language === "bn" ? "গণপ্রজাতন্ত্রী বাংলাদেশ সরকার" : "Government of the People's Republic of Bangladesh"}</span>
+            </div>
           </div>
         </footer>
       </div>
@@ -661,6 +682,13 @@ export function AppShell({ children }: AppShellProps) {
       <UserProfileModal
         isOpen={profileModalOpen}
         onClose={() => setProfileModalOpen(false)}
+      />
+
+      {/* Terms & Conditions Modal */}
+      <TermsModal
+        isOpen={termsModalOpen}
+        onClose={() => setTermsModalOpen(false)}
+        language={language}
       />
     </div>
   );

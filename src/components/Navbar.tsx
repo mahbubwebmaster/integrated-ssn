@@ -23,6 +23,7 @@ import { useAuth } from "@/context/AuthContext";
 import { useLanguage } from "@/context/LanguageContext";
 import { ROLE_CONFIG } from "@/lib/auth";
 import { UserProfileModal } from "@/components/UserProfileModal";
+import { BdGovLogo } from "@/components/BdGovLogo";
 
 export function Navbar() {
   const pathname = usePathname();
@@ -234,8 +235,8 @@ export function Navbar() {
           <div className="flex items-center justify-between h-16">
             {/* Logo & Portal Title */}
             <Link href="/" className="flex items-center gap-3 group">
-              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-600 to-teal-800 flex items-center justify-center text-white shadow-inner font-bold text-lg border border-emerald-400/30 group-hover:scale-105 transition-transform">
-                <Building2 className="w-5 h-5 text-emerald-100" />
+              <div className="w-10 h-10 rounded-xl bg-white/10 p-1 flex items-center justify-center border border-white/20 group-hover:scale-105 transition-transform shadow-inner">
+                <BdGovLogo className="w-full h-full" />
               </div>
               <div>
                 <div className="font-bold text-base leading-tight tracking-tight text-white flex items-center gap-2">
