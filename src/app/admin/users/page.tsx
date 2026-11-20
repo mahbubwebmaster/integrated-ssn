@@ -549,7 +549,8 @@ export default function AdminUsersPage() {
                 className="w-full min-h-[44px] px-3 py-2 rounded-xl border border-slate-300 text-xs sm:text-sm bg-white text-slate-800 font-semibold focus:outline-none focus:ring-2 focus:ring-emerald-600"
               >
                 <option value="ALL">{language === "bn" ? "সকল ভূমিকা / রোল" : "All Roles"}</option>
-                <option value="SUPER_ADMIN">{language === "bn" ? "সুপার এডমিন / জেলা প্রশাসক" : "Super Admin (DC)"}</option>
+                <option value="SUPER_ADMIN">{language === "bn" ? "সিস্টেম এডমিন (সুপার এডমিন)" : "System Admin (Super Admin)"}</option>
+                <option value="DISTRICT_ADMIN">{language === "bn" ? "জেলা এডমিন (জেলা প্রশাসক)" : "District Admin (DC)"}</option>
                 <option value="UPAZILA_ADMIN">{language === "bn" ? "উপজেলা এডমিন (ইউএনও)" : "Upazila Admin (UNO)"}</option>
                 <option value="DEPT_OFFICER">{language === "bn" ? "উপজেলা দপ্তর কর্মকর্তা" : "Department Officer"}</option>
                 <option value="UNION_VIEWER">{language === "bn" ? "ইউনিয়ন ভিউয়ার" : "Union Viewer"}</option>
@@ -683,6 +684,7 @@ export default function AdminUsersPage() {
                 <tbody className="divide-y divide-slate-100 text-slate-800">
                   {users.map((u) => {
                     const isSuper = u.role === "SUPER_ADMIN";
+                    const isDistrict = u.role === "DISTRICT_ADMIN";
                     const isUpazila = u.role === "UPAZILA_ADMIN";
                     const isDept = u.role === "DEPT_OFFICER" || u.role === "DEPARTMENT_OFFICER";
                     const isUnion = u.role === "UNION_VIEWER";
@@ -714,6 +716,8 @@ export default function AdminUsersPage() {
                             className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold border ${
                               isSuper
                                 ? "bg-purple-100 text-purple-900 border-purple-300"
+                                : isDistrict
+                                ? "bg-indigo-100 text-indigo-900 border-indigo-300"
                                 : isUpazila
                                 ? "bg-amber-100 text-amber-900 border-amber-300"
                                 : isDept
@@ -723,7 +727,9 @@ export default function AdminUsersPage() {
                           >
                             <Shield className="w-3 h-3" />
                             {isSuper
-                              ? (language === "bn" ? (u.email.includes("dc") ? "জেলা প্রশাসক (সুপার এডমিন)" : "সিস্টেম এডমিনিস্ট্রেটর") : "Super Admin")
+                              ? (language === "bn" ? "সিস্টেম এডমিনিস্ট্রেটর" : "System Admin")
+                              : isDistrict
+                              ? (language === "bn" ? "জেলা এডমিন (জেলা প্রশাসক)" : "District Admin (DC)")
                               : isUpazila
                               ? (language === "bn" ? "উপজেলা এডমিন (ইউএনও)" : "Upazila Admin (UNO)")
                               : isDept
@@ -1039,6 +1045,7 @@ export default function AdminUsersPage() {
                     <option value="UNION_VIEWER">{t.roles.UNION_VIEWER}</option>
                     {isSuperAdmin && (
                       <>
+                        <option value="DISTRICT_ADMIN">{language === "bn" ? "জেলা এডমিন (জেলা প্রশাসক)" : "District Admin (DC)"}</option>
                         <option value="UPAZILA_ADMIN">{language === "bn" ? "উপজেলা এডমিন (ইউএনও)" : "Upazila Admin (UNO)"}</option>
                         <option value="SUPER_ADMIN">{t.roles.SUPER_ADMIN}</option>
                       </>
@@ -1046,26 +1053,33 @@ export default function AdminUsersPage() {
                   </select>
                 </div>
 
-                {/* Upazila Selection */}
-                <div>
-                  <label className="block font-bold text-slate-700 mb-1">
-                    {language === "bn" ? "অধিক্ষেত্র / উপজেলা" : "Jurisdiction Upazila"} *
-                  </label>
-                  <select
-                    value={isUpazilaAdmin ? currentUser.upazilaName || "" : newUpazilaName}
-                    onChange={(e) => setNewUpazilaName(e.target.value)}
-                    disabled={isUpazilaAdmin}
-                    className={`w-full px-3 py-2 rounded-xl border text-xs focus:outline-none focus:ring-2 focus:ring-emerald-600 ${
-                      isUpazilaAdmin ? "bg-slate-100 border-slate-300 text-slate-700 cursor-not-allowed" : "border-slate-300 bg-white"
-                    }`}
-                  >
-                    {NETROKONA_UPAZILAS.map((upz) => (
-                      <option key={upz.key} value={upz.nameBn}>
-                        {upz.nameBn} ({upz.nameEn})
-                      </option>
-                    ))}
-                  </select>
-                </div>
+                {/* Upazila Selection (District level for DISTRICT_ADMIN / SUPER_ADMIN) */}
+                {newRole !== "DISTRICT_ADMIN" && newRole !== "SUPER_ADMIN" ? (
+                  <div>
+                    <label className="block font-bold text-slate-700 mb-1">
+                      {language === "bn" ? "অধিক্ষেত্র / উপজেলা" : "Jurisdiction Upazila"} *
+                    </label>
+                    <select
+                      value={isUpazilaAdmin ? currentUser.upazilaName || "" : newUpazilaName}
+                      onChange={(e) => setNewUpazilaName(e.target.value)}
+                      disabled={isUpazilaAdmin}
+                      className={`w-full px-3 py-2 rounded-xl border text-xs focus:outline-none focus:ring-2 focus:ring-emerald-600 ${
+                        isUpazilaAdmin ? "bg-slate-100 border-slate-300 text-slate-700 cursor-not-allowed" : "border-slate-300 bg-white"
+                      }`}
+                    >
+                      {NETROKONA_UPAZILAS.map((upz) => (
+                        <option key={upz.key} value={upz.nameBn}>
+                          {upz.nameBn} ({upz.nameEn})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                ) : (
+                  <div className="p-3 bg-indigo-50 rounded-xl border border-indigo-200 text-xs text-indigo-900">
+                    <span className="font-bold">{language === "bn" ? "অধিক্ষেত্র: " : "Jurisdiction: "}</span>
+                    {language === "bn" ? "সমগ্র নেত্রকোণা জেলা (সকল উপজেলা)" : "Entire Netrokona District (All Upazilas)"}
+                  </div>
+                )}
 
                 {newRole === "DEPT_OFFICER" && (
                   <div>
@@ -1277,6 +1291,7 @@ export default function AdminUsersPage() {
                       className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-white font-medium focus:outline-none focus:ring-2 focus:ring-emerald-600"
                     >
                       <option value="SUPER_ADMIN">{t.roles.SUPER_ADMIN}</option>
+                      <option value="DISTRICT_ADMIN">{language === "bn" ? "জেলা এডমিন (জেলা প্রশাসক)" : "District Admin (DC)"}</option>
                       <option value="UPAZILA_ADMIN">{language === "bn" ? "উপজেলা এডমিন (ইউএনও)" : "Upazila Admin (UNO)"}</option>
                       <option value="DEPT_OFFICER">{t.roles.DEPT_OFFICER}</option>
                       <option value="UNION_VIEWER">{t.roles.UNION_VIEWER}</option>

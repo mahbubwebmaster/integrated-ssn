@@ -62,6 +62,7 @@ export const translations = {
     },
     roles: {
       SUPER_ADMIN: "সুপার অ্যাডমিন",
+      DISTRICT_ADMIN: "জেলা এডমিন (জেলা প্রশাসক)",
       UPAZILA_ADMIN: "উপজেলা এডমিন (ইউএনও)",
       DEPT_OFFICER: "দপ্তর কর্মকর্তা",
       DEPARTMENT_OFFICER: "দপ্তর কর্মকর্তা",
@@ -532,6 +533,7 @@ export const translations = {
     },
     roles: {
       SUPER_ADMIN: "Super Admin",
+      DISTRICT_ADMIN: "District Admin (DC)",
       UPAZILA_ADMIN: "Upazila Admin (UNO)",
       DEPT_OFFICER: "Department Officer",
       DEPARTMENT_OFFICER: "Department Officer",
