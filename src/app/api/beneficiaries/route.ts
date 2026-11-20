@@ -187,6 +187,10 @@ export async function GET(request: Request) {
     // Preserve base conditions for calculating status counts
     const baseWhereClause: any = andConditions.length > 0 ? { AND: [...andConditions] } : {};
 
+    // Resolve effective departmentId: for DEPT_OFFICER, it is strictly their own departmentId
+    const isDeptOfficer = user?.role === "DEPT_OFFICER" || user?.role === "DEPARTMENT_OFFICER";
+    const effectiveDeptId = (isDeptOfficer ? user?.departmentId : departmentId) || departmentId;
+
     // Apply statusFilter (ALL, ACTIVE, SUSPENDED, ARCHIVED)
     const statusConditions: any[] = [];
     if (statusFilter === "ACTIVE") {
@@ -194,7 +198,7 @@ export async function GET(request: Request) {
         isArchived: false,
         enrollments: {
           some: {
-            ...(departmentId ? { scheme: { departmentId } } : {}),
+            ...(effectiveDeptId ? { scheme: { departmentId: effectiveDeptId } } : {}),
             status: { in: ["ACTIVE", "Active"] },
             isArchived: false,
           },
@@ -204,7 +208,7 @@ export async function GET(request: Request) {
       statusConditions.push({
         enrollments: {
           some: {
-            ...(departmentId ? { scheme: { departmentId } } : {}),
+            ...(effectiveDeptId ? { scheme: { departmentId: effectiveDeptId } } : {}),
             status: { in: ["SUSPENDED", "Suspended"] },
             isArchived: false,
           },
@@ -217,7 +221,7 @@ export async function GET(request: Request) {
           {
             enrollments: {
               some: {
-                ...(departmentId ? { scheme: { departmentId } } : {}),
+                ...(effectiveDeptId ? { scheme: { departmentId: effectiveDeptId } } : {}),
                 OR: [{ isArchived: true }, { status: { in: ["ARCHIVED", "Archived"] } }],
               },
             },
@@ -242,7 +246,7 @@ export async function GET(request: Request) {
               isArchived: false,
               enrollments: {
                 some: {
-                  ...(departmentId ? { scheme: { departmentId } } : {}),
+                  ...(effectiveDeptId ? { scheme: { departmentId: effectiveDeptId } } : {}),
                   status: { in: ["ACTIVE", "Active"] },
                   isArchived: false,
                 },
@@ -259,7 +263,7 @@ export async function GET(request: Request) {
             {
               enrollments: {
                 some: {
-                  ...(departmentId ? { scheme: { departmentId } } : {}),
+                  ...(effectiveDeptId ? { scheme: { departmentId: effectiveDeptId } } : {}),
                   status: { in: ["SUSPENDED", "Suspended"] },
                   isArchived: false,
                 },
@@ -279,7 +283,7 @@ export async function GET(request: Request) {
                 {
                   enrollments: {
                     some: {
-                      ...(departmentId ? { scheme: { departmentId } } : {}),
+                      ...(effectiveDeptId ? { scheme: { departmentId: effectiveDeptId } } : {}),
                       OR: [{ isArchived: true }, { status: { in: ["ARCHIVED", "Archived"] } }],
                     },
                   },

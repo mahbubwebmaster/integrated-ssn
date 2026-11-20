@@ -1486,11 +1486,16 @@ export default function ExecutiveDashboard() {
                         isPrimary: false,
                       })),
                     ].map(({ item, isPrimary }) => {
+                      const isOwnDept = !currentUser.departmentId || item.departmentId === currentUser.departmentId;
+                      // Primary allowance can NEVER be cancelled by dept officer; officer can only cancel own dept's excess scheme
+                      const isSelectable = !isPrimary && (isSuperAdmin || isOwnDept);
                       const isSelected = targetForRequest.enrollmentId === item.enrollmentId;
+
                       return (
                         <div
                           key={item.enrollmentId}
                           onClick={() => {
+                            if (!isSelectable) return;
                             setTargetForRequest({
                               ...targetForRequest,
                               enrollmentId: item.enrollmentId,
@@ -1504,10 +1509,12 @@ export default function ExecutiveDashboard() {
                                 : `Audit reveals beneficiary is receiving dual benefits; recommending suspension of ${formatSchemeName(item.schemeName, "en")}.`
                             );
                           }}
-                          className={`p-3 rounded-2xl border-2 transition-all cursor-pointer flex items-center justify-between gap-2.5 ${
-                            isSelected
-                              ? "border-blue-600 bg-blue-50/80 shadow-xs ring-1 ring-blue-500/20"
-                              : "border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50/70"
+                          className={`p-3 rounded-2xl border-2 transition-all flex items-center justify-between gap-2.5 ${
+                            !isSelectable
+                              ? "opacity-60 bg-slate-50 border-slate-200 cursor-not-allowed"
+                              : isSelected
+                              ? "border-blue-600 bg-blue-50/80 shadow-xs ring-1 ring-blue-500/20 cursor-pointer"
+                              : "border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50/70 cursor-pointer"
                           }`}
                         >
                           <div className="flex items-start gap-2.5 min-w-0">
@@ -1515,19 +1522,24 @@ export default function ExecutiveDashboard() {
                               type="radio"
                               name="selected_suspension_scheme"
                               checked={isSelected}
+                              disabled={!isSelectable}
                               onChange={() => {}}
-                              className="mt-1 text-blue-600 focus:ring-blue-500 cursor-pointer shrink-0"
+                              className="mt-1 text-blue-600 focus:ring-blue-500 shrink-0"
                             />
                             <div className="min-w-0">
                               <div className="font-bold text-slate-900 text-xs flex items-center gap-1.5 flex-wrap">
                                 <span>{formatSchemeName(item.schemeName, language)}</span>
                                 {isPrimary ? (
                                   <span className="bg-emerald-100 text-emerald-800 text-[10px] font-bold px-2 py-0.5 rounded-full border border-emerald-300 shrink-0">
-                                    {language === "bn" ? "মূল ভাতা (আগে চালু)" : "Primary (Earlier)"}
+                                    {language === "bn" ? "✓ মূল অনুমোদিত ভাতা (বহাল থাকবে)" : "✓ Primary Approved (Retained)"}
+                                  </span>
+                                ) : !isOwnDept ? (
+                                  <span className="bg-slate-100 text-slate-600 text-[10px] font-bold px-2 py-0.5 rounded-full border border-slate-300 shrink-0">
+                                    {language === "bn" ? "অন্য দপ্তরের কর্মসূচি" : "Other Dept Scheme"}
                                   </span>
                                 ) : (
                                   <span className="bg-amber-100 text-amber-900 text-[10px] font-bold px-2 py-0.5 rounded-full border border-amber-300 shrink-0">
-                                    {language === "bn" ? "অতিরিক্ত ভাতা (পরে চালু)" : "Excess (Later)"}
+                                    {language === "bn" ? "অতিরিক্ত ভাতা (বাতিলের প্রস্তাবযোগ্য)" : "Excess Allowance"}
                                   </span>
                                 )}
                               </div>
@@ -1548,7 +1560,15 @@ export default function ExecutiveDashboard() {
                           </div>
 
                           <div className="shrink-0 text-right">
-                            {isSelected ? (
+                            {isPrimary ? (
+                              <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-1 rounded-lg border border-emerald-200">
+                                {language === "bn" ? "বহাল" : "Retained"}
+                              </span>
+                            ) : !isOwnDept ? (
+                              <span className="text-[10px] font-medium text-slate-400 bg-slate-100 px-2 py-1 rounded-lg">
+                                {language === "bn" ? "অননুমোদিত" : "Locked"}
+                              </span>
+                            ) : isSelected ? (
                               <span className="text-[10px] font-bold text-blue-700 bg-blue-100 px-2 py-1 rounded-lg">
                                 {language === "bn" ? "নির্বাচিত" : "Selected"}
                               </span>

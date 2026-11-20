@@ -286,9 +286,52 @@ export async function POST(request: Request) {
         {
           success: false,
           error:
-            "অননুমোদিত দপ্তর: আপনি শুধুমাত্র আপনার নিজস্ব দপ্তরের আওতাধীন সক্রিয় ভাতার জন্য আবেদন করতে পারবেন (Forbidden: Target enrollment does not belong to your department).",
+            "অননুমোদিত দপ্তর: আপনি শুধুমাত্র আপনার নিজস্ব দপ্তরের আওতাধীন অতিরিক্ত ভাতার জন্য বাতিলের আবেদন করতে পারবেন (Forbidden: Target enrollment does not belong to your department).",
         },
         { status: 403 }
+      );
+    }
+
+    // Verify that the target enrollment is NOT the citizen's primary approved allowance (মূল অনুমোদিত ভাতা)
+    // Rule: The primary approved allowance cannot be cancelled by a department officer.
+    // Only the department officer who owns the excess/secondary allowance can submit a removal request.
+    const citizenEnrollments = await prisma.enrollment.findMany({
+      where: {
+        OR: [
+          { beneficiaryId: enrollment.beneficiaryId },
+          ...(enrollment.beneficiary.nid ? [{ beneficiary: { nid: enrollment.beneficiary.nid } }] : []),
+          ...(enrollment.beneficiary.brn ? [{ beneficiary: { brn: enrollment.beneficiary.brn } }] : []),
+        ],
+        status: { in: ["Active", "Flagged", "ACTIVE", "FLAGGED"] },
+        isArchived: false,
+      },
+      include: {
+        scheme: {
+          include: { department: true },
+        },
+      },
+    });
+
+    // Chronological Seniority / Primary Scheme Determination:
+    // Earliest startDate takes precedence; tie-breaker: higher monthly financial value
+    const sortedEnrollments = [...citizenEnrollments].sort((a, b) => {
+      const timeA = new Date(a.startDate).getTime();
+      const timeB = new Date(b.startDate).getTime();
+      if (!isNaN(timeA) && !isNaN(timeB) && timeA !== timeB) {
+        return timeA - timeB; // Earliest enrolled scheme is primary
+      }
+      return b.scheme.monthlyAmount - a.scheme.monthlyAmount;
+    });
+
+    if (sortedEnrollments.length > 1 && sortedEnrollments[0].id === enrollmentId) {
+      const primarySchemeName =
+        enrollment.scheme.nameBn || enrollment.scheme.name;
+      return NextResponse.json(
+        {
+          success: false,
+          error: `আবেদন ব্যর্থ: '${primarySchemeName}' এই সুবিধাভোগীর 'মূল অনুমোদিত ভাতা'। সরকারি বিধিমালা অনুযায়ী মূল অনুমোদিত ভাতা প্রদানকারী দপ্তর ভাতা বাতিলের আবেদন করতে পারবে না। শুধুমাত্র অতিরিক্ত ভাতার ক্ষেত্রে সংশ্লিষ্ট দপ্তর ব্যবহারকারী বাতিলের আবেদন করতে পারবেন।`,
+        },
+        { status: 400 }
       );
     }
 
