@@ -48,6 +48,8 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
             email: user.email,
             designation: user.designation,
             role: user.role,
+            phone: user.phone || null,
+            image: user.image || null,
             departmentId: user.departmentId,
             district: user.district,
             districtName: user.districtName || user.district || "নেত্রকোণা",

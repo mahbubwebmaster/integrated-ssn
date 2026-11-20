@@ -205,95 +205,87 @@ const AuthContext = createContext<AuthContextType>({
   loading: false,
 });
 
-export function AuthProvider({ children }: { children: React.ReactNode }) {
+function buildSessionUser(u: any): UserSession {
+  const userRole = (u.role || "SUPER_ADMIN") as UserRole;
+  return {
+    id: u.id || "auth-user",
+    name: u.name || "Official User",
+    designation: u.designation || null,
+    email: u.email || "",
+    role: userRole,
+    roleTitleBn: ROLE_CONFIG[userRole]?.nameBn || userRole,
+    roleTitleEn: ROLE_CONFIG[userRole]?.nameEn || userRole,
+    phone: u.phone || null,
+    phoneVerified: Boolean(u.phoneVerified),
+    image: u.image || null,
+    isEmailVerified: Boolean(u.isEmailVerified),
+    departmentId: u.departmentId || null,
+    departmentName: u.departmentName || null,
+    departmentNameBn: u.departmentNameBn || null,
+    departmentNameEn: u.departmentNameEn || null,
+    district: u.district || u.districtName || "নেত্রকোণা",
+    upazilaName: u.upazilaName || null,
+    unionName: u.unionName || null,
+  };
+}
+
+export function AuthProvider({
+  children,
+  initialSession,
+}: {
+  children: React.ReactNode;
+  initialSession?: any;
+}) {
   const { data: session } = useSession();
   const [currentUser, setCurrentUserState] = useState<UserSession>(() => {
-    if (typeof window !== "undefined") {
-      try {
-        const cached = localStorage.getItem("ssnp_cached_user");
-        if (cached) {
-          const parsed = JSON.parse(cached);
-          if (parsed && parsed.name) return parsed;
-        }
-      } catch {}
+    if (initialSession?.user) {
+      return buildSessionUser(initialSession.user);
     }
     return DEFAULT_SUPER_ADMIN;
   });
   const [allUsers, setAllUsers] = useState<UserSession[]>(DEFAULT_USERS);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(!initialSession?.user);
 
   // Synchronize with NextAuth session when available
   useEffect(() => {
-    if (session?.user) {
-      const u = session.user;
-      const userRole = (u.role || "SUPER_ADMIN") as UserRole;
-      const matched = allUsers.find((x) => x.email === u.email || x.id === u.id);
+    const u = session?.user || initialSession?.user;
+    if (u) {
+      const newUser = buildSessionUser(u);
+      setCurrentUserState((prev) => ({
+        ...prev,
+        ...newUser,
+      }));
+      setLoading(false);
 
-      const newUser: UserSession = {
-        id: u.id || matched?.id || "auth-user",
-        name: u.name || matched?.name || "Official User",
-        designation: (u as any).designation || matched?.designation || null,
-        email: u.email || matched?.email || "",
-        role: userRole,
-        roleTitleBn: ROLE_CONFIG[userRole]?.nameBn || userRole,
-        roleTitleEn: ROLE_CONFIG[userRole]?.nameEn || userRole,
-        phone: (matched?.phone || null) as string | null,
-        phoneVerified: Boolean(matched?.phoneVerified),
-        image: (u.image || matched?.image || null) as string | null,
-        isEmailVerified: Boolean(matched?.isEmailVerified),
-        departmentId: u.departmentId || matched?.departmentId || null,
-        departmentName: matched?.departmentName || null,
-        departmentNameBn: (u as any).departmentNameBn || matched?.departmentNameBn || null,
-        departmentNameEn: (u as any).departmentNameEn || matched?.departmentNameEn || null,
-        district: (u as any).district || matched?.district || "নেত্রকোণা",
-        upazilaName: (u as any).upazilaName || matched?.upazilaName || null,
-        unionName: u.unionName || matched?.unionName || null,
-      };
-
-      setCurrentUserState(newUser);
-      if (typeof window !== "undefined") {
-        try {
-          localStorage.setItem("ssnp_cached_user", JSON.stringify(newUser));
-        } catch {}
-      }
-
-      // Also asynchronously fetch user profile to populate avatar/phone
+      // Also asynchronously fetch user profile to populate avatar/phone if needed
       if (u.id) {
         fetch(`/api/auth/profile?userId=${encodeURIComponent(u.id)}`)
           .then((res) => (res.ok ? res.json() : null))
           .then((data) => {
             if (data?.success && data?.user) {
               const p = data.user;
-              setCurrentUserState((prev) => {
-                const updated: UserSession = {
-                  ...prev,
-                  name: p.name || prev.name,
-                  designation: p.designation ?? prev.designation,
-                  phone: p.phone ?? prev.phone,
-                  phoneVerified: Boolean(p.phoneVerified),
-                  image: p.image ?? prev.image,
-                  isEmailVerified: Boolean(p.isEmailVerified),
-                  departmentId: p.departmentId || prev.departmentId,
-                  departmentName: p.departmentName || prev.departmentName,
-                  departmentNameBn: p.departmentNameBn || prev.departmentNameBn,
-                  departmentNameEn: p.departmentNameEn || prev.departmentNameEn,
-                  district: p.district || prev.district || "নেত্রকোণা",
-                  upazilaName: p.upazilaName !== undefined ? p.upazilaName : prev.upazilaName,
-                  unionName: p.unionName || prev.unionName,
-                };
-                if (typeof window !== "undefined") {
-                  try {
-                    localStorage.setItem("ssnp_cached_user", JSON.stringify(updated));
-                  } catch {}
-                }
-                return updated;
-              });
+              setCurrentUserState((prev) => ({
+                ...prev,
+                name: p.name || prev.name,
+                designation: p.designation ?? prev.designation,
+                phone: p.phone ?? prev.phone,
+                phoneVerified: Boolean(p.phoneVerified),
+                image: p.image ?? prev.image,
+                isEmailVerified: Boolean(p.isEmailVerified),
+                departmentId: p.departmentId || prev.departmentId,
+                departmentName: p.departmentName || prev.departmentName,
+                departmentNameBn: p.departmentNameBn || prev.departmentNameBn,
+                departmentNameEn: p.departmentNameEn || prev.departmentNameEn,
+                district: p.district || prev.district || "নেত্রকোণা",
+                upazilaName: p.upazilaName !== undefined ? p.upazilaName : prev.upazilaName,
+                unionName: p.unionName || prev.unionName,
+              }));
             }
           })
           .catch(() => { });
       }
     }
-  }, [session, allUsers]);
+  }, [session, initialSession]);
 
   // Load users safely without throwing unhandled network errors
   useEffect(() => {
@@ -375,9 +367,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const setCurrentUser = (user: UserSession) => {
     setCurrentUserState(user);
     if (typeof window !== "undefined") {
-      try {
-        localStorage.setItem("ssnp_cached_user", JSON.stringify(user));
-      } catch {}
       localStorage.setItem("ssnp_active_user_id", user.id);
       document.cookie = `ssn_user_role=${user.role}; path=/`;
       if (user.departmentId) {
