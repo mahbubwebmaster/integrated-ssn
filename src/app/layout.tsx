@@ -17,9 +17,9 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "SSNP Redundancy & Deduplication System | Bangladesh Local Government",
+  title: "সমন্বিত সুবিধাভোগী ব্যবস্থাপনা | জেলা প্রশাসন, নেত্রকোণা",
   description:
-    "Integrated Social Safety Net Program (SSNP) data deduplication, cross-scheme validation, and beneficiary redundancy detection portal for Upazila/Union administration.",
+    "সমন্বিত সুবিধাভোগী ব্যবস্থাপনা ও সামাজিক নিরাপত্তা কর্মসূচি অডিট পোর্টাল • জেলা প্রশাসন, নেত্রকোণা",
 };
 
 export default function RootLayout({

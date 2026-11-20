@@ -8,8 +8,8 @@ export type Language = "bn" | "en";
 export const translations = {
   bn: {
     common: {
-      appName: "সামাজিক নিরাপত্তা ডাটাবেজ ও ডুপ্লিকেশন পোর্টাল",
-      appSub: "সামাজিক নিরাপত্তা কর্মসূচি ডুপ্লিকেশন ও আর্থিক অপচয় নিরোধ সিস্টেম • জেলা প্রশাসন, নেত্রকোণা",
+      appName: "সমন্বিত সুবিধাভোগী ব্যবস্থাপনা",
+      appSub: "কলমাকান্দা উপজেলা",
       govtBadge: "গণপ্রজাতন্ত্রী বাংলাদেশ সরকার • জেলা প্রশাসন, নেত্রকোণা",
       govtTopBar: "গণপ্রজাতন্ত্রী বাংলাদেশ সরকার • জেলা প্রশাসন, নেত্রকোণা",
       activeRole: "বর্তমান ভূমিকা:",
@@ -73,8 +73,8 @@ export const translations = {
     },
     dashboard: {
       badge: "সার্বিক নিরাপত্তা বেষ্টনী পর্যবেক্ষণ",
-      title: "উপজেলা সামাজিক নিরাপত্তা ডাটা মনিটরিং ড্যাশবোর্ড",
-      subtitle: "উপজেলার বিভিন্ন মন্ত্রণালয়ের আওতায় ডুপ্লিকেট সুবিধাভোগী ও রাজস্ব অপচয় নিরোধের কেন্দ্রীয় ড্যাশবোর্ড",
+      title: "সমন্বিত সুবিধাভোগী ব্যবস্থাপনা",
+      subtitle: "কলমাকান্দা উপজেলা",
       kpiTotalBeneficiaries: "মোট সুবিধাভোগী",
       kpiTotalSub: "সকল দপ্তর ও কর্মসূচিতে নিবন্ধিত",
       kpiDuplicatesFound: "শনাক্তকৃত ডুপ্লিকেট সুবিধাভোগী",
@@ -478,8 +478,8 @@ export const translations = {
   },
   en: {
     common: {
-      appName: "Social Safety Net Database & Deduplication Portal",
-      appSub: "Social Safety Net Program Deduplication System • District Administration, Netrokona",
+      appName: "Integrated Beneficiary Management",
+      appSub: "Kalmakanda Upazila",
       govtBadge: "Government of the People's Republic of Bangladesh • District Administration, Netrokona",
       govtTopBar: "Government of the People's Republic of Bangladesh • District Administration, Netrokona",
       activeRole: "Active Role:",
@@ -543,8 +543,8 @@ export const translations = {
     },
     dashboard: {
       badge: "Social Protection Safety Net Oversight",
-      title: "Upazila Social Safety Net Monitoring Dashboard",
-      subtitle: "Central monitoring registry to detect duplicate beneficiaries and eliminate financial leakages across ministries",
+      title: "Integrated Beneficiary Management",
+      subtitle: "Kalmakanda Upazila",
       kpiTotalBeneficiaries: "Total Beneficiaries",
       kpiTotalSub: "Registered across all departments & schemes",
       kpiDuplicatesFound: "Duplicate Beneficiaries Detected",

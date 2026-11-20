@@ -167,6 +167,11 @@ export function AppShell({ children }: AppShellProps) {
     },
   ];
 
+  // Upazila Subtitle: strictly Upazila name with "উপজেলা" (without "প্রশাসন"), e.g. "কলমাকান্দা উপজেলা"
+  const currentUpazilaTitle = currentUser.upazilaName
+    ? (currentUser.upazilaName.includes("উপজেলা") ? currentUser.upazilaName : `${currentUser.upazilaName} উপজেলা`)
+    : (language === "bn" ? "কলমাকান্দা উপজেলা" : "Kalmakanda Upazila");
+
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col lg:flex-row w-full max-w-full overflow-x-hidden">
       {/* =========================================================================
@@ -181,17 +186,10 @@ export function AppShell({ children }: AppShellProps) {
             </div>
             <div className="overflow-hidden">
               <div className="font-bold text-sm leading-tight text-white truncate flex items-center gap-1.5">
-                <span>{language === "bn" ? "ডুপ্লিকেশন পোর্টাল" : "SSNP Portal"}</span>
-                <span className="text-[9px] font-bold bg-emerald-800 text-emerald-200 px-1.5 py-0.5 rounded-full uppercase">
-                  {language === "bn" ? "নেত্রকোণা" : "Netrokona"}
-                </span>
+                <span>{language === "bn" ? "সমন্বিত সুবিধাভোগী ব্যবস্থাপনা" : "Integrated Beneficiary Management"}</span>
               </div>
-              <p className="text-[11px] text-slate-400 truncate mt-0.5 font-medium">
-                {currentUser.upazilaName
-                  ? `${currentUser.upazilaName} প্রশাসন`
-                  : language === "bn"
-                  ? "সমগ্র জেলা প্রশাসন"
-                  : "District Administration"}
+              <p className="text-[11px] text-emerald-400 truncate mt-0.5 font-medium">
+                {currentUpazilaTitle}
               </p>
             </div>
           </Link>
@@ -326,7 +324,11 @@ export function AppShell({ children }: AppShellProps) {
         <div className="bg-emerald-950 px-3 py-1 text-[11px] text-emerald-200 border-b border-emerald-900/50 flex items-center justify-between">
           <div className="flex items-center gap-1.5 truncate">
             <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shrink-0"></span>
-            <span className="truncate">{t.common.govtTopBar}</span>
+            <span className="truncate">
+              {language === "bn"
+                ? `গণপ্রজাতন্ত্রী বাংলাদেশ সরকার • জেলা প্রশাসন, নেত্রকোণা • ${currentUpazilaTitle}`
+                : `Govt. of Bangladesh • Netrokona • ${currentUpazilaTitle}`}
+            </span>
           </div>
           <div className="flex items-center gap-1 shrink-0 ml-2">
             <button
@@ -369,10 +371,10 @@ export function AppShell({ children }: AppShellProps) {
               </div>
               <div className="truncate">
                 <div className="font-bold text-xs leading-tight text-white truncate">
-                  {language === "bn" ? "ডুপ্লিকেশন পোর্টাল" : "SSNP Portal"}
+                  {language === "bn" ? "সমন্বিত সুবিধাভোগী ব্যবস্থাপনা" : "Integrated Beneficiary Management"}
                 </div>
-                <div className="text-[10px] text-slate-400 truncate">
-                  {currentUser.upazilaName || (language === "bn" ? "নেত্রকোণা জেলা" : "Netrokona District")}
+                <div className="text-[10px] text-emerald-400 truncate font-medium">
+                  {currentUpazilaTitle}
                 </div>
               </div>
             </Link>
@@ -431,10 +433,10 @@ export function AppShell({ children }: AppShellProps) {
                 </div>
                 <div>
                   <div className="font-bold text-xs text-white">
-                    {language === "bn" ? "সামাজিক নিরাপত্তা পোর্টাল" : "SSNP Portal"}
+                    {language === "bn" ? "সমন্বিত সুবিধাভোগী ব্যবস্থাপনা" : "Integrated Beneficiary Management"}
                   </div>
                   <div className="text-[10px] text-emerald-400 font-semibold">
-                    {language === "bn" ? "নেত্রকোণা জেলা" : "Netrokona District"}
+                    {currentUpazilaTitle}
                   </div>
                 </div>
               </div>
@@ -565,14 +567,14 @@ export function AppShell({ children }: AppShellProps) {
         <header className="hidden lg:flex no-print bg-slate-900 border-b border-slate-800 px-6 py-2.5 items-center justify-between text-xs text-slate-300 shadow-sm sticky top-0 z-20">
           <div className="flex items-center gap-2">
             <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-            <span className="font-semibold text-slate-200">{t.common.govtTopBar}</span>
+            <span className="font-semibold text-slate-200">
+              {language === "bn"
+                ? "গণপ্রজাতন্ত্রী বাংলাদেশ সরকার • জেলা প্রশাসন, নেত্রকোণা"
+                : "Government of the People's Republic of Bangladesh • District Administration, Netrokona"}
+            </span>
             <span className="text-slate-600">•</span>
             <span className="text-emerald-400 font-bold">
-              {currentUser.upazilaName
-                ? `${currentUser.upazilaName} উপজেলা প্রশাসন`
-                : language === "bn"
-                ? "নেত্রকোণা জেলা কেন্দ্রীয় মনিটরিং"
-                : "Netrokona District Central Monitoring"}
+              {currentUpazilaTitle}
             </span>
           </div>
 

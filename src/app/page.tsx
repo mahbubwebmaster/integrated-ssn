@@ -551,18 +551,27 @@ export default function ExecutiveDashboard() {
     "#ec4899",
   ];
 
+  // Subtitle: strictly Upazila name with "উপজেলা" (without "প্রশাসন"), e.g. "কলমাকান্দা উপজেলা"
+  const currentUpazilaDisplay = selectedUpazila
+    ? (selectedUpazila.includes("উপজেলা") ? selectedUpazila : `${selectedUpazila} উপজেলা`)
+    : currentUser.upazilaName
+    ? (currentUser.upazilaName.includes("উপজেলা") ? currentUser.upazilaName : `${currentUser.upazilaName} উপজেলা`)
+    : (language === "bn" ? "কলমাকান্দা উপজেলা" : "Kalmakanda Upazila");
+
   return (
     <div className="min-h-screen bg-slate-50 py-6 px-3 sm:px-6 lg:px-8 print:p-0 print:bg-white w-full max-w-full min-w-0 overflow-x-clip">
       <div className="max-w-7xl mx-auto space-y-6 w-full min-w-0">
         {/* Printable Official Government Header (Only visible during print) */}
         <div className="hidden print:block text-center border-b-2 border-slate-900 pb-4 mb-6">
           <h1 className="text-xl font-bold uppercase tracking-wider text-slate-900">
-            {t.common.govtTopBar}
+            {language === "bn"
+              ? `গণপ্রজাতন্ত্রী বাংলাদেশ সরকার • জেলা প্রশাসন, নেত্রকোণা • ${currentUpazilaDisplay}`
+              : `${t.common.govtTopBar} • ${currentUpazilaDisplay}`}
           </h1>
           <h2 className="text-base font-semibold text-slate-800 mt-1">
             {language === "bn"
-              ? "উপজেলা সামাজিক নিরাপত্তা কর্মসূচি (SSNP) দ্বৈত ভাতা নিরোধ ও অপচয় নিরীক্ষা প্রতিবেদন"
-              : "Upazila Social Safety Net Program (SSNP) Deduplication & Leakage Audit Report"}
+              ? "সমন্বিত সুবিধাভোগী ব্যবস্থাপনা ও অপচয় নিরীক্ষা প্রতিবেদন"
+              : "Integrated Beneficiary Management & Leakage Audit Report"}
           </h2>
           <div className="text-xs text-slate-600 mt-1">
             {language === "bn" ? `তারিখ: ${currentDate || "—"}` : `Date: ${currentDate || "—"}`}
@@ -582,10 +591,10 @@ export default function ExecutiveDashboard() {
                 <span>{t.dashboard.badge}</span>
               </div>
               <h1 className="text-2xl sm:text-3xl lg:text-4xl font-extrabold tracking-tight text-white">
-                {t.dashboard.title}
+                {language === "bn" ? "সমন্বিত সুবিধাভোগী ব্যবস্থাপনা" : t.dashboard.title}
               </h1>
-              <p className="text-xs sm:text-sm text-slate-300 leading-relaxed font-normal">
-                {t.dashboard.subtitle}
+              <p className="text-sm sm:text-base text-emerald-300 font-semibold leading-relaxed">
+                {currentUpazilaDisplay}
               </p>
             </div>
 

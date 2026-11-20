@@ -232,10 +232,12 @@ export function Navbar() {
               </div>
               <div>
                 <div className="font-bold text-base leading-tight tracking-tight text-white flex items-center gap-2">
-                  {language === "bn" ? "সামাজিক নিরাপত্তা ডুপ্লিকেশন পোর্টাল" : "SSNP Deduplication Portal"}
-                  <span className="text-[10px] font-bold bg-emerald-800 text-emerald-100 px-2 py-0.5 rounded-full uppercase tracking-wider border border-emerald-600/40">
-                    {language === "bn" ? "নেত্রকোণা জেলা" : "Netrokona District"}
-                  </span>
+                  {language === "bn" ? "সমন্বিত সুবিধাভোগী ব্যবস্থাপনা" : "Integrated Beneficiary Management"}
+                </div>
+                <div className="text-xs text-emerald-400 font-medium">
+                  {currentUser.upazilaName
+                    ? (currentUser.upazilaName.includes("উপজেলা") ? currentUser.upazilaName : `${currentUser.upazilaName} উপজেলা`)
+                    : (language === "bn" ? "কলমাকান্দা উপজেলা" : "Kalmakanda Upazila")}
                 </div>
                 <div className="text-xs text-slate-400 font-normal">
                   {currentUser.designation ? (
