@@ -266,15 +266,15 @@ export async function POST(request: Request) {
       );
     }
 
-    // Check if status is currently Active
-    const isCurrentlyActive =
-      enrollment.status.toLowerCase() === "active";
+    // Check if status is currently Active or Flagged
+    const isEligibleForRemoval =
+      ["active", "flagged"].includes(enrollment.status.toLowerCase());
 
-    if (!isCurrentlyActive) {
+    if (!isEligibleForRemoval) {
       return NextResponse.json(
         {
           success: false,
-          error: `আবেদন ব্যর্থ: শুধুমাত্র 'Active' ভাতার ক্ষেত্রে বাতিলের আবেদন করা যাবে (বর্তমান স্ট্যাটাস: ${enrollment.status})।`,
+          error: `আবেদন ব্যর্থ: শুধুমাত্র 'Active' বা 'Flagged' ভাতার ক্ষেত্রে বাতিলের আবেদন করা যাবে (বর্তমান স্ট্যাটাস: ${enrollment.status})।`,
         },
         { status: 400 }
       );
