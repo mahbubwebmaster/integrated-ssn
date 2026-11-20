@@ -32,7 +32,7 @@ export default function RootLayout({
       lang="bn"
       className={`${hindSiliguri.variable} ${geistMono.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col bg-slate-50 text-slate-900 font-sans">
+      <body className="min-h-full flex flex-col bg-slate-50 text-slate-900 font-sans overflow-x-hidden max-w-[100vw]">
         <Providers>
           <AppShell>{children}</AppShell>
         </Providers>

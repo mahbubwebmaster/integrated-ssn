@@ -552,8 +552,8 @@ export default function ExecutiveDashboard() {
   ];
 
   return (
-    <div className="min-h-screen bg-slate-50 py-6 px-4 sm:px-6 lg:px-8 print:p-0 print:bg-white">
-      <div className="max-w-7xl mx-auto space-y-6">
+    <div className="min-h-screen bg-slate-50 py-6 px-3 sm:px-6 lg:px-8 print:p-0 print:bg-white w-full max-w-full min-w-0 overflow-x-clip">
+      <div className="max-w-7xl mx-auto space-y-6 w-full min-w-0">
         {/* Printable Official Government Header (Only visible during print) */}
         <div className="hidden print:block text-center border-b-2 border-slate-900 pb-4 mb-6">
           <h1 className="text-xl font-bold uppercase tracking-wider text-slate-900">
@@ -862,7 +862,7 @@ export default function ExecutiveDashboard() {
               </span>
             </div>
 
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3 w-full min-w-0">
               {stats.upazilaStats.map((upz) => {
                 const isSelected = selectedUpazila === upz.upazilaName;
                 const hasDuplicates = upz.flagged > 0;
@@ -914,9 +914,9 @@ export default function ExecutiveDashboard() {
 
         {/* CHARTS ROW (RECHARTS) */}
         {isMounted && (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 print:hidden">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 print:hidden w-full min-w-0">
             {/* Chart 1: Union & Ward-wise Duplicate Distribution */}
-            <div className="bg-white p-6 rounded-3xl border border-slate-200/90 shadow-xs hover:shadow-sm transition-shadow">
+            <div className="bg-white p-6 rounded-3xl border border-slate-200/90 shadow-xs hover:shadow-sm transition-shadow min-w-0 overflow-hidden">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4 pb-3 border-b border-slate-100">
                 <div>
                   <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
@@ -934,7 +934,7 @@ export default function ExecutiveDashboard() {
                 </span>
               </div>
 
-              <div className="h-72 w-full">
+              <div className="h-72 w-full min-w-0 overflow-hidden">
                 {redundancyData?.breakdownByUnionWard &&
                 redundancyData.breakdownByUnionWard.length > 0 ? (
                   <ResponsiveContainer width="100%" height="100%">
@@ -995,7 +995,7 @@ export default function ExecutiveDashboard() {
             </div>
 
             {/* Chart 2: Department-wise Overlap Breakdown */}
-            <div className="bg-white p-6 rounded-3xl border border-slate-200/90 shadow-xs hover:shadow-sm transition-shadow">
+            <div className="bg-white p-6 rounded-3xl border border-slate-200/90 shadow-xs hover:shadow-sm transition-shadow min-w-0 overflow-hidden">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4 pb-3 border-b border-slate-100">
                 <div>
                   <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
@@ -1013,7 +1013,7 @@ export default function ExecutiveDashboard() {
                 </span>
               </div>
 
-              <div className="h-72 w-full">
+              <div className="h-72 w-full min-w-0 overflow-hidden">
                 {redundancyData?.breakdownByDepartment &&
                 redundancyData.breakdownByDepartment.length > 0 ? (
                   <ResponsiveContainer width="100%" height="100%">
@@ -1190,8 +1190,8 @@ export default function ExecutiveDashboard() {
               </p>
             </div>
           ) : (
-            <div className="border border-slate-200 rounded-2xl overflow-hidden shadow-xs">
-              <div className="w-full overflow-x-auto">
+            <div className="border border-slate-200 rounded-2xl overflow-hidden shadow-xs w-full max-w-full">
+              <div className="w-full max-w-full overflow-x-auto">
                 <table className="w-full min-w-[850px] text-left text-xs border-collapse">
                   <thead className="bg-slate-100/80 text-slate-700 font-semibold uppercase tracking-wider text-[11px] border-b border-slate-200 whitespace-nowrap">
                   <tr>

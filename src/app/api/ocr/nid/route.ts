@@ -111,11 +111,11 @@ Return ONLY valid JSON matching this structure without Markdown formatting or ex
 If any field cannot be found or is unclear, return empty string "" for that field.`;
 
     const modelsToTry = [
-      "gemini-3.8-flash",
-      "gemini-3.5-flash",
-      "gemini-3.5-flash-lite",
-      "gemini-flash-latest",
       "gemini-2.5-flash",
+      "gemini-flash-latest",
+      "gemini-2.5-flash-lite",
+      "gemini-3.5-flash",
+      "gemini-3.8-flash",
     ];
     let rawText = "";
     const errors: string[] = [];

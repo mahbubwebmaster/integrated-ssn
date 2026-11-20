@@ -168,7 +168,7 @@ export function AppShell({ children }: AppShellProps) {
   ];
 
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col lg:flex-row">
+    <div className="min-h-screen bg-slate-50 flex flex-col lg:flex-row w-full max-w-full overflow-x-hidden">
       {/* =========================================================================
           1. DESKTOP PERMANENT LEFT SIDEBAR (lg:flex w-64)
       ========================================================================= */}
@@ -560,7 +560,7 @@ export function AppShell({ children }: AppShellProps) {
       {/* =========================================================================
           4. MAIN APPLICATION CONTENT AREA (lg:pl-64)
       ========================================================================= */}
-      <div className="lg:pl-64 flex flex-col flex-1 min-h-screen">
+      <div className="lg:pl-64 flex flex-col flex-1 min-h-screen min-w-0 w-full max-w-full overflow-x-hidden">
         {/* Desktop Top Micro Bar */}
         <header className="hidden lg:flex no-print bg-slate-900 border-b border-slate-800 px-6 py-2.5 items-center justify-between text-xs text-slate-300 shadow-sm sticky top-0 z-20">
           <div className="flex items-center gap-2">
@@ -602,7 +602,7 @@ export function AppShell({ children }: AppShellProps) {
         </header>
 
         {/* Dynamic Page Content */}
-        <main className="flex-1 w-full">{children}</main>
+        <main className="flex-1 w-full min-w-0 max-w-full">{children}</main>
 
         {/* Global Footer */}
         <footer className="no-print border-t border-slate-200 bg-white py-6 text-center text-xs text-slate-500">

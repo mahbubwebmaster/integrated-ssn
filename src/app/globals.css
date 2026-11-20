@@ -19,6 +19,13 @@ body {
   letter-spacing: 0.01em;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  max-width: 100vw;
+  overflow-x: hidden;
+}
+
+html {
+  max-width: 100vw;
+  overflow-x: hidden;
 }
 
 /* Official Government Accent Badges & Cards */
