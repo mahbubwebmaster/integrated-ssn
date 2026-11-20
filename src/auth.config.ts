@@ -16,6 +16,7 @@ export const authConfig = {
         nextUrl.pathname.startsWith("/api/auth/session") ||
         nextUrl.pathname.startsWith("/api/auth/csrf") ||
         nextUrl.pathname.startsWith("/api/auth/providers") ||
+        nextUrl.pathname.startsWith("/api/auth/forgot-password") ||
         nextUrl.pathname.startsWith("/api/health");
 
       if (isNextAuthPublic) {
