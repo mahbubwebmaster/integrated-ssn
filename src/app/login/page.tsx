@@ -159,6 +159,22 @@ function LoginForm() {
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
           <button
             type="button"
+            onClick={() => handleQuickFill("dc@district.gov.bd", "dc123")}
+            className="p-3 min-h-[48px] text-left rounded-xl border border-indigo-200 bg-indigo-50/70 hover:bg-indigo-100 transition-colors cursor-pointer col-span-1 sm:col-span-2"
+          >
+            <div className="flex items-center justify-between">
+              <div className="font-bold text-indigo-900 text-[11px]">
+                {language === "bn" ? "জেলা এডমিন (জেলা প্রশাসক - ডিসি)" : "District Admin (Deputy Commissioner)"}
+              </div>
+              <span className="text-[9px] px-1.5 py-0.5 rounded bg-indigo-200 text-indigo-900 font-bold">
+                DISTRICT_ADMIN
+              </span>
+            </div>
+            <div className="text-[10px] text-indigo-700">dc@district.gov.bd (পাসওয়ার্ড: dc123)</div>
+          </button>
+
+          <button
+            type="button"
             onClick={() => handleQuickFill("admin@upazila.gov.bd", "admin123")}
             className="p-3 min-h-[48px] text-left rounded-xl border border-purple-200 bg-purple-50/70 hover:bg-purple-100 transition-colors cursor-pointer"
           >
@@ -198,7 +214,7 @@ function LoginForm() {
           </button>
         </div>
         <p className="text-[10px] text-slate-400 text-center pt-1">
-          {language === "bn" ? "ইউএনও পাসওয়ার্ড: uno123 • অন্যান্যদের পাসওয়ার্ড: admin123" : "UNO Password: uno123 • Others: admin123"}
+          {language === "bn" ? "ডিসি পাসওয়ার্ড: dc123 • ইউএনও পাসওয়ার্ড: uno123 • অন্যান্যদের: admin123" : "DC: dc123 • UNO: uno123 • Others: admin123"}
         </p>
       </div>
     </div>

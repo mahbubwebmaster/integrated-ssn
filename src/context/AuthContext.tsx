@@ -13,6 +13,7 @@ interface AuthContextType {
   permissions: ReturnType<typeof getPermissionsForRole>;
   roleConfig: typeof ROLE_CONFIG[UserRole];
   isSuperAdmin: boolean;
+  isDistrictAdmin: boolean;
   isUpazilaAdmin: boolean;
   isDeptOfficer: boolean;
   isUnionViewer: boolean;
@@ -197,6 +198,7 @@ const AuthContext = createContext<AuthContextType>({
   permissions: getPermissionsForRole("UPAZILA_ADMIN"),
   roleConfig: ROLE_CONFIG.UPAZILA_ADMIN,
   isSuperAdmin: false,
+  isDistrictAdmin: false,
   isUpazilaAdmin: true,
   isDeptOfficer: false,
   isUnionViewer: false,
@@ -390,6 +392,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         permissions,
         roleConfig,
         isSuperAdmin: role === "SUPER_ADMIN",
+        isDistrictAdmin: role === "DISTRICT_ADMIN",
         isUpazilaAdmin: role === "UPAZILA_ADMIN",
         isDeptOfficer: role === "DEPT_OFFICER" || role === "DEPARTMENT_OFFICER",
         isUnionViewer: role === "UNION_VIEWER",

@@ -9,23 +9,51 @@ datasource db {
   provider = "postgresql"
 }
 
+// -------------------------------------------------------------
+// Administrative Hierarchy Models: District -> Upazila
+// -------------------------------------------------------------
+
+model District {
+  id        String    @id @default(cuid())
+  nameBn    String    @unique // e.g. "নেত্রকোণা"
+  nameEn    String?   // e.g. "Netrokona"
+  code      String?   @unique // Administrative code e.g. "NET"
+  upazilas  Upazila[]
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+}
+
+model Upazila {
+  id         String   @id @default(cuid())
+  nameBn     String   // e.g. "কলমাকান্দা", "দুর্গাপুর", "নেত্রকোণা সদর"
+  nameEn     String?  // e.g. "Kalmakanda", "Durgapur", "Netrokona Sadar"
+  districtId String
+  district   District @relation(fields: [districtId], references: [id], onDelete: Cascade)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@unique([nameBn, districtId])
+  @@index([districtId])
+}
+
 model User {
   id                  String              @id @default(cuid())
   name                String
-  designation         String?             // e.g. "উপজেলা নির্বাহী অফিসার", "জেলা প্রশাসক", "মহাপরিচালক (ডিজি)"
+  designation         String?             // e.g. "উপজেলা নির্বাহী অফিসার", "জেলা প্রশাসক", "উপজেলা সমাজসেবা কর্মকর্তা"
   email               String              @unique
   password            String?             // legacy/compat
   passwordHash        String              @default("240be518fabd2724ddb6f04eeb1da5967448d7e831c08c8fa822809f74c720a9")
-  role                String              // "SUPER_ADMIN", "UPAZILA_ADMIN", "DEPT_OFFICER", "UNION_VIEWER"
+  role                String              // "SUPER_ADMIN", "DISTRICT_ADMIN", "UPAZILA_ADMIN", "DEPT_OFFICER", "UNION_VIEWER"
   phone               String?
   phoneVerified       Boolean             @default(false)
   image               String?
   isEmailVerified     Boolean             @default(false)
-  departmentId        String?
+  departmentId        String?             // required for DEPT_OFFICER
   department          Department?         @relation(fields: [departmentId], references: [id], onDelete: SetNull)
   unionName           String?
   district            String?             @default("নেত্রকোণা")
-  upazilaName         String?             // e.g. "নেত্রকোণা সদর", "কেন্দুয়া", etc. Null for DC / District officers
+  districtName        String?             @default("নেত্রকোণা") // required for DISTRICT_ADMIN, UPAZILA_ADMIN, DEPT_OFFICER
+  upazilaName         String?             // required for UPAZILA_ADMIN and DEPT_OFFICER (null for DISTRICT_ADMIN / DC)
   wardNo              String?
   isActive            Boolean             @default(true)
   uploadedEnrollments Enrollment[]        @relation("UploadedEnrollments")
@@ -41,17 +69,18 @@ model User {
   @@index([departmentId])
   @@index([unionName])
   @@index([district, upazilaName])
+  @@index([districtName, upazilaName])
 }
 
 model AccessRole {
   id                        String   @id @default(cuid())
-  key                       String   @unique // e.g. "SUPER_ADMIN", "DEPT_OFFICER", "UNION_VIEWER", or custom
+  key                       String   @unique // e.g. "SUPER_ADMIN", "DISTRICT_ADMIN", "UPAZILA_ADMIN", "DEPT_OFFICER", "UNION_VIEWER"
   nameEn                    String
   nameBn                    String
   descriptionEn             String   @default("")
   descriptionBn             String   @default("")
   badgeColor                String   @default("bg-slate-100 text-slate-900 border-slate-300")
-  isSystem                  Boolean  @default(false) // true for the 3 built-in roles; cannot be deleted
+  isSystem                  Boolean  @default(false)
   canViewAllDepartments     Boolean  @default(false)
   canUploadExcel            Boolean  @default(false)
   canUploadAnyDepartment    Boolean  @default(false)
@@ -72,12 +101,16 @@ model Department {
   name            String           @unique
   nameBn          String?          // দপ্তরের নাম (বাংলা)
   nameEn          String?          // Department Name (English)
+  districtName    String?          @default("নেত্রকোণা")
+  upazilaName     String?          // optional departmental office upazila
   schemes         Scheme[]
   users           User[]
   uploadBatches   UploadBatch[]
   removalRequests RemovalRequest[]
   createdAt       DateTime         @default(now())
   updatedAt       DateTime         @updatedAt
+
+  @@index([districtName, upazilaName])
 }
 
 model Scheme {
@@ -122,11 +155,12 @@ model Beneficiary {
   dateOfBirth     DateTime?        // জন্ম তারিখ
   mobile          String?
   district        String           @default("নেত্রকোণা")
+  districtName    String?          @default("নেত্রকোণা")
   upazilaName     String           @default("নেত্রকোণা সদর")
   unionName       String
   wardNo          String
   isArchived      Boolean          @default(false)
-  archiveReason   String?          // EXPIRED, DECEASED, DEPT_REMOVAL, OTHER
+  archiveReason   String?          // BENEFIT_EXPIRED, DECEASED, DEPT_REMOVAL, INELIGIBLE, OTHER
   archiveNote     String?          // কর্মকর্তা কর্তৃক প্রদত্ত নোট
   archivedAt      DateTime?
   archivedBy      String?          // ব্যবহারকারীর নাম বা পদবী
@@ -138,6 +172,7 @@ model Beneficiary {
   @@index([nid])
   @@index([brn])
   @@index([district, upazilaName])
+  @@index([districtName, upazilaName])
   @@index([unionName, wardNo])
   @@index([gender])
   @@index([dateOfBirth])
@@ -150,9 +185,9 @@ model Enrollment {
   schemeId           String
   cardNumber         String?
   startDate          DateTime
-  status             String              // Active, Flagged, Suspended, Archived
+  status             String              // "ACTIVE" (সক্রিয় সুবিধাভোগী), "SUSPENDED" (বাতিলকৃত সুবিধাভোগী - approved by UNO), "ARCHIVED" (আর্কাইভ সুবিধাভোগী - expired tenure, deceased, or migrated)
   isArchived         Boolean             @default(false)
-  archiveReason      String?             // EXPIRED, DECEASED, DEPT_REMOVAL, OTHER
+  archiveReason      String?             // BENEFIT_EXPIRED, DECEASED, DEPT_REMOVAL, INELIGIBLE, OTHER
   archiveNote        String?             // কর্মকর্তা কর্তৃক প্রদত্ত নোট
   archivedAt         DateTime?
   archivedBy         String?

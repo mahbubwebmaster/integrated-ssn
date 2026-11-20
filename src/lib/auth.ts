@@ -1,4 +1,4 @@
-export type UserRole = "SUPER_ADMIN" | "UPAZILA_ADMIN" | "DEPT_OFFICER" | "DEPARTMENT_OFFICER" | "UNION_VIEWER";
+export type UserRole = "SUPER_ADMIN" | "DISTRICT_ADMIN" | "UPAZILA_ADMIN" | "DEPT_OFFICER" | "DEPARTMENT_OFFICER" | "UNION_VIEWER";
 
 export interface UserSession {
   id: string;
@@ -17,6 +17,7 @@ export interface UserSession {
   departmentNameBn?: string | null;
   departmentNameEn?: string | null;
   district?: string | null;
+  districtName?: string | null;
   upazilaName?: string | null;
   unionName?: string | null;
   wardNo?: string | null;
@@ -38,6 +39,13 @@ export const ROLE_CONFIG: Record<
     descriptionBn: "সকল দপ্তরের সামগ্রিক তথ্য ও চার্ট দেখা, বাল্ক আপলোড, এবং ইউজার ও সিস্টেম পরিচালনা। (সরাসরি বা এককভাবে ভাতা বাতিলের ক্ষমতা নেই)",
     descriptionEn: "Full system monitoring across all departments, bulk upload, and system management. Cannot directly cancel allowances.",
     badgeColor: "bg-purple-100 text-purple-900 border-purple-300",
+  },
+  DISTRICT_ADMIN: {
+    nameEn: "District Admin (DC)",
+    nameBn: "জেলা এডমিন (জেলা প্রশাসক)",
+    descriptionBn: "জেলা প্রশাসক: সমগ্র জেলার সকল উপজেলা ও দপ্তরের সামগ্রিক তথ্য, ড্যাশবোর্ড ও চার্ট পর্যবেক্ষণ এবং রিপোর্ট পর্যালোচনা।",
+    descriptionEn: "Deputy Commissioner: full district oversight across all upazilas and departments.",
+    badgeColor: "bg-indigo-100 text-indigo-900 border-indigo-300",
   },
   UPAZILA_ADMIN: {
     nameEn: "Upazila Admin (UNO)",
@@ -74,6 +82,17 @@ export const ROLE_PERMISSIONS = {
     canViewAllDepartments: true,
     canUploadExcel: true,
     canUploadAnyDepartment: true,
+    canViewDetailedDeduplication: true,
+    canDirectlySuspend: false,
+    canApproveSuspension: false,
+    canRequestSuspension: false,
+    canManageUsersAndDepts: true,
+    canExportReports: true,
+  },
+  DISTRICT_ADMIN: {
+    canViewAllDepartments: true,
+    canUploadExcel: false,
+    canUploadAnyDepartment: false,
     canViewDetailedDeduplication: true,
     canDirectlySuspend: false,
     canApproveSuspension: false,

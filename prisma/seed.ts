@@ -13,9 +13,52 @@ const adapter = new PrismaPg(dbUrl);
 const prisma = new PrismaClient({ adapter });
 
 async function main() {
-  console.log("🌱 Starting Netrokona District Seeding for SSNP System...");
+  console.log("🌱 Starting Netrokona District & Upazila Seeding for SSNP System...");
 
-  // 1. Seed Core Departments and Schemes
+  // --------------------------------------------------------------------------
+  // 1. Seed Administrative Hierarchy: District & Upazilas
+  // --------------------------------------------------------------------------
+  console.log("\n📍 1. Seeding Administrative Hierarchy (District & Upazilas)...");
+
+  const district = await prisma.district.upsert({
+    where: { nameBn: NETROKONA_DISTRICT.nameBn },
+    update: {
+      nameEn: NETROKONA_DISTRICT.nameEn,
+      code: "NET",
+    },
+    create: {
+      nameBn: NETROKONA_DISTRICT.nameBn,
+      nameEn: NETROKONA_DISTRICT.nameEn,
+      code: "NET",
+    },
+  });
+  console.log(`  ✓ District: ${district.nameBn} (${district.nameEn}) [${district.code}]`);
+
+  for (const u of NETROKONA_UPAZILAS) {
+    await prisma.upazila.upsert({
+      where: {
+        nameBn_districtId: {
+          nameBn: u.nameBn,
+          districtId: district.id,
+        },
+      },
+      update: {
+        nameEn: u.nameEn,
+      },
+      create: {
+        nameBn: u.nameBn,
+        nameEn: u.nameEn,
+        districtId: district.id,
+      },
+    });
+  }
+  console.log(`  ✓ Seeded ${NETROKONA_UPAZILAS.length} Upazilas under ${district.nameBn}`);
+
+  // --------------------------------------------------------------------------
+  // 2. Seed Core Departments and Schemes
+  // --------------------------------------------------------------------------
+  console.log("\n🏢 2. Seeding Core Government Departments & Safety Net Schemes...");
+
   const departmentsData = [
     {
       name: "Department of Social Services",
@@ -77,13 +120,18 @@ async function main() {
           name: deptData.name,
           nameBn: deptData.nameBn,
           nameEn: deptData.nameEn,
+          districtName: NETROKONA_DISTRICT.nameBn,
         },
       });
       console.log(`  ✓ Created Department: ${dept.nameBn || dept.name}`);
     } else {
       await prisma.department.update({
         where: { id: dept.id },
-        data: { nameBn: deptData.nameBn, nameEn: deptData.nameEn },
+        data: {
+          nameBn: deptData.nameBn,
+          nameEn: deptData.nameEn,
+          districtName: NETROKONA_DISTRICT.nameBn,
+        },
       });
     }
 
@@ -115,23 +163,43 @@ async function main() {
   const foodDept = deptMap.get("Directorate General of Food")!;
   const dmrDept = deptMap.get("Department of Disaster Management & Relief")!;
 
-  // 2. Prepare User Accounts for Netrokona District
+  // --------------------------------------------------------------------------
+  // 3. User Model Roles: DISTRICT_ADMIN, UPAZILA_ADMIN, DEPT_OFFICER, SUPER_ADMIN
+  // --------------------------------------------------------------------------
+  console.log("\n👥 3. Seeding User Accounts (DISTRICT_ADMIN, UPAZILA_ADMIN, DEPT_OFFICER)...");
+
   const usersToSeed: any[] = [
-    // 2.1 District Level (Deputy Commissioner - DC) - Oversees whole Netrokona district
+    // 3.1 District Admin (Deputy Commissioner - DC) -> dc@district.gov.bd / dc123
     {
       name: "বনানী বিশ্বাস",
       designation: "জেলা প্রশাসক ও জেলা ম্যাজিস্ট্রেট, নেত্রকোণা",
-      email: "dc@netrokona.gov.bd",
-      password: "admin123",
-      role: "SUPER_ADMIN",
+      email: "dc@district.gov.bd",
+      password: "dc123",
+      role: "DISTRICT_ADMIN",
       district: NETROKONA_DISTRICT.nameBn,
+      districtName: NETROKONA_DISTRICT.nameBn,
       upazilaName: null,
       departmentId: null,
       unionName: null,
       phone: "01713000001",
       isActive: true,
     },
-    // Compat / System Admin
+    // Compat DC Login
+    {
+      name: "বনানী বিশ্বাস",
+      designation: "জেলা প্রশাসক ও জেলা ম্যাজিস্ট্রেট, নেত্রকোণা",
+      email: "dc@netrokona.gov.bd",
+      password: "admin123",
+      role: "DISTRICT_ADMIN",
+      district: NETROKONA_DISTRICT.nameBn,
+      districtName: NETROKONA_DISTRICT.nameBn,
+      upazilaName: null,
+      departmentId: null,
+      unionName: null,
+      phone: "01713000001",
+      isActive: true,
+    },
+    // Super Admin / ICT Cell
     {
       name: "সিস্টেম অ্যাডমিনিস্ট্রেটর",
       designation: "সহকারী প্রোগ্রামার (আইসিটি সেল), নেত্রকোণা",
@@ -139,6 +207,7 @@ async function main() {
       password: "admin123",
       role: "SUPER_ADMIN",
       district: NETROKONA_DISTRICT.nameBn,
+      districtName: NETROKONA_DISTRICT.nameBn,
       upazilaName: null,
       departmentId: null,
       unionName: null,
@@ -147,12 +216,12 @@ async function main() {
     },
   ];
 
-  // 2.2 Seed UNOs for all 10 Upazilas of Netrokona
+  // 3.2 Upazila Executive Officers (UNOs - UPAZILA_ADMIN)
   const unoOfficers = [
+    { key: "kalmakanda", name: "মো: আসাদুজ্জামান", upazilaName: "কলমাকান্দা", phone: "01711000014" },
+    { key: "durgapur", name: "নাভীদ রেজওয়ানুল কবীর", upazilaName: "দুর্গাপুর", phone: "01711000013" },
     { key: "sadar", name: "তানিয়া আক্তার", upazilaName: "নেত্রকোণা সদর", phone: "01711000011" },
     { key: "kendua", name: "মো: ইমদাদুল হক তালুকদার", upazilaName: "কেন্দুয়া", phone: "01711000012" },
-    { key: "durgapur", name: "নাভীদ রেজওয়ানুল কবীর", upazilaName: "দুর্গাপুর", phone: "01711000013" },
-    { key: "kalmakanda", name: "মো: আসাদুজ্জামান", upazilaName: "কলমাকান্দা", phone: "01711000014" },
     { key: "barhatta", name: "ফারজানা আক্তার ববি", upazilaName: "বারহাট্টা", phone: "01711000015" },
     { key: "madan", name: "মো: শাহ আলম মিয়া", upazilaName: "মদন", phone: "01711000016" },
     { key: "mohanganj", name: "ছাব্বির আহমেদ আকুঞ্জি", upazilaName: "মোহনগঞ্জ", phone: "01711000017" },
@@ -169,6 +238,7 @@ async function main() {
       password: "uno123",
       role: "UPAZILA_ADMIN",
       district: NETROKONA_DISTRICT.nameBn,
+      districtName: NETROKONA_DISTRICT.nameBn,
       upazilaName: uno.upazilaName,
       departmentId: null,
       unionName: null,
@@ -177,7 +247,7 @@ async function main() {
     });
   }
 
-  // Also include the legacy default uno@upazila.gov.bd mapped to Sadar
+  // Legacy default uno@upazila.gov.bd
   usersToSeed.push({
     name: "তানিয়া আক্তার",
     designation: "উপজেলা নির্বাহী অফিসার, নেত্রকোণা সদর",
@@ -185,6 +255,7 @@ async function main() {
     password: "uno123",
     role: "UPAZILA_ADMIN",
     district: NETROKONA_DISTRICT.nameBn,
+    districtName: NETROKONA_DISTRICT.nameBn,
     upazilaName: "নেত্রকোণা সদর",
     departmentId: null,
     unionName: null,
@@ -192,16 +263,17 @@ async function main() {
     isActive: true,
   });
 
-  // 2.3 Department Officers for all 10 Upazilas (Social Services & Women Affairs)
+  // 3.3 Department Officers (DEPT_OFFICER) across Upazilas
   for (const u of NETROKONA_UPAZILAS) {
     // DSS Officer
     usersToSeed.push({
       name: `উপজেলা সমাজসেবা কর্মকর্তা (${u.nameBn})`,
-      designation: "উপজেলা সমাজসেবা কর্মকর্তা",
+      designation: `উপজেলা সমাজসেবা কর্মকর্তা, ${u.nameBn}`,
       email: `dss.${u.key}@netrokona.gov.bd`,
       password: "admin123",
       role: "DEPT_OFFICER",
       district: NETROKONA_DISTRICT.nameBn,
+      districtName: NETROKONA_DISTRICT.nameBn,
       upazilaName: u.nameBn,
       departmentId: socialDept.id,
       unionName: null,
@@ -212,11 +284,12 @@ async function main() {
     // DWA Officer
     usersToSeed.push({
       name: `উপজেলা মহিলা বিষয়ক কর্মকর্তা (${u.nameBn})`,
-      designation: "উপজেলা মহিলা বিষয়ক কর্মকর্তা",
+      designation: `উপজেলা মহিলা বিষয়ক কর্মকর্তা, ${u.nameBn}`,
       email: `dwa.${u.key}@netrokona.gov.bd`,
       password: "admin123",
       role: "DEPT_OFFICER",
       district: NETROKONA_DISTRICT.nameBn,
+      districtName: NETROKONA_DISTRICT.nameBn,
       upazilaName: u.nameBn,
       departmentId: womenDept.id,
       unionName: null,
@@ -225,8 +298,36 @@ async function main() {
     });
   }
 
-  // Add default legacy dept logins mapped to Sadar
+  // Food Dept Officers for Kalmakanda & Durgapur
   usersToSeed.push(
+    {
+      name: "উপজেলা খাদ্য নিয়ন্ত্রক, কলমাকান্দা",
+      designation: "উপজেলা খাদ্য নিয়ন্ত্রক",
+      email: "food.kalmakanda@netrokona.gov.bd",
+      password: "admin123",
+      role: "DEPT_OFFICER",
+      district: NETROKONA_DISTRICT.nameBn,
+      districtName: NETROKONA_DISTRICT.nameBn,
+      upazilaName: "কলমাকান্দা",
+      departmentId: foodDept.id,
+      unionName: null,
+      phone: "01714000101",
+      isActive: true,
+    },
+    {
+      name: "উপজেলা খাদ্য নিয়ন্ত্রক, দুর্গাপুর",
+      designation: "উপজেলা খাদ্য নিয়ন্ত্রক",
+      email: "food.durgapur@netrokona.gov.bd",
+      password: "admin123",
+      role: "DEPT_OFFICER",
+      district: NETROKONA_DISTRICT.nameBn,
+      districtName: NETROKONA_DISTRICT.nameBn,
+      upazilaName: "দুর্গাপুর",
+      departmentId: foodDept.id,
+      unionName: null,
+      phone: "01714000102",
+      isActive: true,
+    },
     {
       name: "তানভীর আহমেদ",
       designation: "উপজেলা সমাজসেবা কর্মকর্তা, নেত্রকোণা সদর",
@@ -234,6 +335,7 @@ async function main() {
       password: "admin123",
       role: "DEPT_OFFICER",
       district: NETROKONA_DISTRICT.nameBn,
+      districtName: NETROKONA_DISTRICT.nameBn,
       upazilaName: "নেত্রকোণা সদর",
       departmentId: socialDept.id,
       unionName: null,
@@ -247,6 +349,7 @@ async function main() {
       password: "admin123",
       role: "DEPT_OFFICER",
       district: NETROKONA_DISTRICT.nameBn,
+      districtName: NETROKONA_DISTRICT.nameBn,
       upazilaName: "নেত্রকোণা সদর",
       departmentId: womenDept.id,
       unionName: null,
@@ -255,12 +358,12 @@ async function main() {
     }
   );
 
-  // 2.4 Representative Union Viewers across Upazilas
+  // 3.4 Union Viewers
   const unionViewers = [
+    { email: "lengura.kalmakanda@netrokona.gov.bd", name: "মো: সাইদুর রহমান", desig: "ইউপি সচিব", upazila: "কলমাকান্দা", union: "লেংগুরা" },
+    { email: "birishiri.durgapur@netrokona.gov.bd", name: "সুরেশ মারাক", desig: "ইউপি সচিব", upazila: "দুর্গাপুর", union: "বিরিশিরি" },
     { email: "mougati.sadar@netrokona.gov.bd", name: "মো: কামরুল হাসান", desig: "ইউপি সচিব", upazila: "নেত্রকোণা সদর", union: "মৌগাতি" },
     { email: "sandikona.kendua@netrokona.gov.bd", name: "আব্দুল মজিদ", desig: "ইউপি সচিব", upazila: "কেন্দুয়া", union: "সান্দিকোণা" },
-    { email: "birishiri.durgapur@netrokona.gov.bd", name: "সুরেশ মারাক", desig: "ইউপি সচিব", upazila: "দুর্গাপুর", union: "বিরিশিরি" },
-    { email: "lengura.kalmakanda@netrokona.gov.bd", name: "মো: সাইদুর রহমান", desig: "ইউপি সচিব", upazila: "কলমাকান্দা", union: "লেংগুরা" },
   ];
 
   for (const uv of unionViewers) {
@@ -271,6 +374,7 @@ async function main() {
       password: "admin123",
       role: "UNION_VIEWER",
       district: NETROKONA_DISTRICT.nameBn,
+      districtName: NETROKONA_DISTRICT.nameBn,
       upazilaName: uv.upazila,
       departmentId: null,
       unionName: uv.union,
@@ -296,6 +400,7 @@ async function main() {
           password: u.password,
           passwordHash,
           district: u.district,
+          districtName: u.districtName || u.district,
           upazilaName: u.upazilaName,
           departmentId: u.departmentId,
           unionName: u.unionName,
@@ -314,6 +419,7 @@ async function main() {
           password: u.password,
           passwordHash,
           district: u.district,
+          districtName: u.districtName || u.district,
           upazilaName: u.upazilaName,
           departmentId: u.departmentId,
           unionName: u.unionName,
@@ -325,101 +431,85 @@ async function main() {
     }
   }
 
-  // 3. Update Existing Beneficiaries to have district: "নেত্রকোণা" and valid Upazila
-  const beneficiariesWithoutUpazila = await prisma.beneficiary.findMany({
+  // --------------------------------------------------------------------------
+  // 4. Update Existing Beneficiaries with districtName
+  // --------------------------------------------------------------------------
+  await prisma.beneficiary.updateMany({
     where: {
       OR: [
-        { district: "" },
-        { upazilaName: "" },
+        { districtName: null },
+        { districtName: "" },
       ],
+    },
+    data: {
+      district: NETROKONA_DISTRICT.nameBn,
+      districtName: NETROKONA_DISTRICT.nameBn,
     },
   });
 
-  if (beneficiariesWithoutUpazila.length > 0) {
-    console.log(`\n  Updating ${beneficiariesWithoutUpazila.length} beneficiaries with Netrokona address hierarchy...`);
-    for (const b of beneficiariesWithoutUpazila) {
-      await prisma.beneficiary.update({
-        where: { id: b.id },
-        data: {
-          district: NETROKONA_DISTRICT.nameBn,
-          upazilaName: "নেত্রকোণা সদর",
-        },
-      });
-    }
-  }
+  // --------------------------------------------------------------------------
+  // 5. Sample Beneficiaries across 2 Upazilas: Kalmakanda & Durgapur
+  //    Demonstrating 4 Statuses: ACTIVE, SUSPENDED, ARCHIVED, and Duplicates
+  // --------------------------------------------------------------------------
+  console.log("\n📋 4. Seeding Sample Data across Kalmakanda & Durgapur (4 Statuses)...");
 
-  // 4. Seed Multi-Upazila Sample Beneficiaries with Duplicates across Netrokona
-  const existingCount = await prisma.beneficiary.count();
-  console.log(`\n  Current Beneficiary Count in DB: ${existingCount}`);
-
-  // Fetch schemes
+  // Get schemes
   const oldAgeScheme = await prisma.scheme.findFirst({ where: { name: { contains: "Old Age" } } });
   const widowScheme = await prisma.scheme.findFirst({ where: { name: { contains: "Widow" } } });
+  const disabilityScheme = await prisma.scheme.findFirst({ where: { name: { contains: "Disability" } } });
   const vwbScheme = await prisma.scheme.findFirst({ where: { name: { contains: "VWB" } } });
-  const motherChildScheme = await prisma.scheme.findFirst({ where: { name: { contains: "Mother & Child" } } });
   const ffpScheme = await prisma.scheme.findFirst({ where: { name: { contains: "Food Friendly" } } });
+  const vgfScheme = await prisma.scheme.findFirst({ where: { name: { contains: "VGF" } } });
 
-  if (oldAgeScheme && widowScheme && vwbScheme) {
-    // Let's create realistic beneficiaries for Kendua, Durgapur, Kalmakanda, and Sadar
-    const sampleNetrokonaBeneficiaries = [
-      // Kendua Upazila Duplicate Case
-      {
-        fullName: "মোসাঃ ফাতেমা বেগম",
-        nameBn: "মোসাঃ ফাতেমা বেগম",
-        nameEn: "Fatema Begum",
-        guardianName: "আব্দুল মমিন",
-        fatherName: "আব্দুল মমিন",
-        gender: "Female",
-        nid: "19685012345678901",
-        mobile: "01723456789",
-        district: "নেত্রকোণা",
-        upazilaName: "কেন্দুয়া",
-        unionName: "সান্দিকোণা",
-        wardNo: "০৩",
-        enrollments: [
-          { schemeId: widowScheme.id, cardNumber: "KEN-WID-101", startDate: new Date("2023-01-15"), status: "Active" },
-          { schemeId: vwbScheme.id, cardNumber: "KEN-VWB-202", startDate: new Date("2023-06-01"), status: "Flagged" },
-        ],
-      },
-      // Kendua Upazila Case 2
-      {
-        fullName: "মো: রফিকুল ইসলাম ভূঁইয়া",
-        nameBn: "মো: রফিকুল ইসলাম ভূঁইয়া",
-        nameEn: "Rafiqul Islam Bhuiyan",
-        guardianName: "মরহুম সামছুল হক",
-        fatherName: "মরহুম সামছুল হক",
-        gender: "Male",
-        nid: "19555098765432101",
-        mobile: "01734567890",
-        district: "নেত্রকোণা",
-        upazilaName: "কেন্দুয়া",
-        unionName: "রোয়াইলবাড়ি",
-        wardNo: "০৫",
-        enrollments: [
-          { schemeId: oldAgeScheme.id, cardNumber: "KEN-OAA-301", startDate: new Date("2022-03-10"), status: "Active" },
-          ...(ffpScheme ? [{ schemeId: ffpScheme.id, cardNumber: "KEN-FFP-401", startDate: new Date("2023-09-01"), status: "Flagged" }] : []),
-        ],
-      },
-      // Durgapur Upazila Duplicate Case
-      {
-        fullName: "সুকৃতি মানখিন",
-        nameBn: "সুকৃতি মানখিন",
-        nameEn: "Sukriti Mankhin",
-        guardianName: "প্রবীন মারাক",
-        fatherName: "প্রবীন মারাক",
-        gender: "Female",
-        nid: "19725055443322110",
-        mobile: "01745678901",
-        district: "নেত্রকোণা",
-        upazilaName: "দুর্গাপুর",
-        unionName: "বিরিশিরি",
-        wardNo: "০২",
-        enrollments: [
-          { schemeId: widowScheme.id, cardNumber: "DUR-WID-501", startDate: new Date("2023-02-20"), status: "Active" },
-          { schemeId: vwbScheme.id, cardNumber: "DUR-VWB-601", startDate: new Date("2023-07-15"), status: "Flagged" },
-        ],
-      },
-      // Kalmakanda Upazila Duplicate Case
+  const kalmakandaUno = await prisma.user.findFirst({ where: { email: "uno.kalmakanda@netrokona.gov.bd" } });
+  const durgapurUno = await prisma.user.findFirst({ where: { email: "uno.durgapur@netrokona.gov.bd" } });
+  const kalmakandaDssUser = await prisma.user.findFirst({ where: { email: "dss.kalmakanda@netrokona.gov.bd" } });
+  const durgapurDwaUser = await prisma.user.findFirst({ where: { email: "dwa.durgapur@netrokona.gov.bd" } });
+
+  if (oldAgeScheme && widowScheme && disabilityScheme && vwbScheme && ffpScheme && vgfScheme) {
+    interface SampleEnrollment {
+      schemeId: string;
+      cardNumber: string;
+      startDate: Date;
+      status: string;
+      isArchived: boolean;
+      archiveReason?: string | null;
+      archiveNote?: string | null;
+      archivedAt?: Date | null;
+      archivedBy?: string | null;
+      suspensionReason?: string;
+      removalApproved?: boolean;
+    }
+
+    interface SampleBeneficiary {
+      fullName: string;
+      nameBn: string;
+      nameEn: string;
+      guardianName: string;
+      fatherName: string;
+      gender: string;
+      dateOfBirth?: Date;
+      nid: string;
+      mobile: string;
+      district: string;
+      districtName: string;
+      upazilaName: string;
+      unionName: string;
+      wardNo: string;
+      isArchived: boolean;
+      archiveReason?: string | null;
+      archiveNote?: string | null;
+      archivedAt?: Date | null;
+      archivedBy?: string | null;
+      enrollments: SampleEnrollment[];
+    }
+
+    const sampleBeneficiaries: SampleBeneficiary[] = [
+      // ======================================================================
+      // UPAZILA 1: KALMAKANDA (কলমাকান্দা উপজেলা)
+      // ======================================================================
+
+      // 1.1 Kalmakanda: ACTIVE (সক্রিয় সুবিধাভোগী)
       {
         fullName: "মোছাঃ মমতাজ বেগম",
         nameBn: "মোছাঃ মমতাজ বেগম",
@@ -427,39 +517,262 @@ async function main() {
         guardianName: "আলমগীর হোসেন",
         fatherName: "আলমগীর হোসেন",
         gender: "Female",
-        nid: "19655077889900112",
+        dateOfBirth: new Date("1958-04-12"),
+        nid: "19585077889900112",
         mobile: "01756789012",
-        district: "নেত্রকোণা",
+        district: NETROKONA_DISTRICT.nameBn,
+        districtName: NETROKONA_DISTRICT.nameBn,
         upazilaName: "কলমাকান্দা",
         unionName: "লেংগুরা",
         wardNo: "০৪",
+        isArchived: false,
         enrollments: [
-          { schemeId: oldAgeScheme.id, cardNumber: "KAL-OAA-701", startDate: new Date("2021-08-01"), status: "Active" },
-          { schemeId: widowScheme.id, cardNumber: "KAL-WID-801", startDate: new Date("2023-04-10"), status: "Flagged" },
+          {
+            schemeId: oldAgeScheme.id,
+            cardNumber: "KLM-OAA-101",
+            startDate: new Date("2022-01-15"),
+            status: "ACTIVE", // ACTIVE status
+            isArchived: false,
+          },
         ],
       },
-      // Netrokona Sadar Case
+
+      // 1.2 Kalmakanda: SUSPENDED (বাতিলকৃত সুবিধাভোগী - approved by UNO)
       {
-        fullName: "মোসাঃ সেলিনা আক্তার",
-        nameBn: "মোসাঃ সেলিনা আক্তার",
-        nameEn: "Selina Akter",
-        guardianName: "আব্দুল করিম",
-        fatherName: "আব্দুল করিম",
-        gender: "Female",
-        nid: "19805099887766554",
-        mobile: "01767890123",
-        district: "নেত্রকোণা",
-        upazilaName: "নেত্রকোণা সদর",
-        unionName: "মৌগাতি",
-        wardNo: "০১",
+        fullName: "মোঃ রফিকুল ইসলাম ভূঁইয়া",
+        nameBn: "মোঃ রফিকুল ইসলাম ভূঁইয়া",
+        nameEn: "Md. Rafiqul Islam Bhuiyan",
+        guardianName: "মৃত জহিরুল হক",
+        fatherName: "মৃত জহিরুল হক",
+        gender: "Male",
+        dateOfBirth: new Date("1965-08-20"),
+        nid: "19655012345678999",
+        mobile: "01712345670",
+        district: NETROKONA_DISTRICT.nameBn,
+        districtName: NETROKONA_DISTRICT.nameBn,
+        upazilaName: "কলমাকান্দা",
+        unionName: "কলমাকান্দা সদর",
+        wardNo: "০২",
+        isArchived: false,
         enrollments: [
-          { schemeId: widowScheme.id, cardNumber: "SDR-WID-901", startDate: new Date("2022-11-01"), status: "Active" },
-          ...(motherChildScheme ? [{ schemeId: motherChildScheme.id, cardNumber: "SDR-MC-902", startDate: new Date("2023-05-15"), status: "Flagged" }] : []),
+          {
+            schemeId: ffpScheme.id,
+            cardNumber: "KLM-FFP-202",
+            startDate: new Date("2023-03-01"),
+            status: "SUSPENDED", // SUSPENDED status
+            isArchived: false,
+            suspensionReason: "অন্যত্র স্থানান্তরিত ও তথ্য অসংগতি পাওয়ায় ইউএনও কর্তৃক অনুমোদন সাপেক্ষে বাতিল।",
+            removalApproved: true,
+          },
+        ],
+      },
+
+      // 1.3 Kalmakanda: ARCHIVED (আর্কাইভ সুবিধাভোগী - deceased)
+      {
+        fullName: "মরহুম আব্দুর রশিদ",
+        nameBn: "মরহুম আব্দুর রশিদ",
+        nameEn: "Late Abdur Rashid",
+        guardianName: "মৃত ইনসান আলী",
+        fatherName: "মৃত ইনসান আলী",
+        gender: "Male",
+        dateOfBirth: new Date("1948-11-05"),
+        nid: "19485077889900333",
+        mobile: "01733445566",
+        district: NETROKONA_DISTRICT.nameBn,
+        districtName: NETROKONA_DISTRICT.nameBn,
+        upazilaName: "কলমাকান্দা",
+        unionName: "নাজিরপুর",
+        wardNo: "০৩",
+        isArchived: true,
+        archiveReason: "DECEASED",
+        archiveNote: "উপকারভোগী মৃত্যুবরণ করায় তার প্রতিবন্ধী ভাতার রেকর্ডটি ২৫ এপ্রিল ২০২৪ তারিখে আর্কাইভ করা হলো।",
+        archivedAt: new Date("2024-04-25"),
+        archivedBy: "উপজেলা সমাজসেবা কর্মকর্তা, কলমাকান্দা",
+        enrollments: [
+          {
+            schemeId: disabilityScheme.id,
+            cardNumber: "KLM-DIS-303",
+            startDate: new Date("2021-07-01"),
+            status: "ARCHIVED", // ARCHIVED status
+            isArchived: true,
+            archiveReason: "DECEASED",
+            archiveNote: "উপকারভোগী মৃত্যুবরণ করায় রেকর্ডটি আর্কাইভে স্থানান্তর করা হলো।",
+            archivedAt: new Date("2024-04-25"),
+            archivedBy: "উপজেলা সমাজসেবা কর্মকর্তা, কলমাকান্দা",
+          },
+        ],
+      },
+
+      // 1.4 Kalmakanda: CROSS-DEPARTMENT DUPLICATE (আন্তঃদপ্তর ডুপ্লিকেট - DSS + DWA)
+      {
+        fullName: "মোছাঃ হাজেরা খাতুন",
+        nameBn: "মোছাঃ হাজেরা খাতুন",
+        nameEn: "Hajera Khatun",
+        guardianName: "মৃত শামসুল হক",
+        fatherName: "মৃত শামসুল হক",
+        gender: "Female",
+        dateOfBirth: new Date("1974-06-18"),
+        nid: "19745088990011223",
+        mobile: "01788990011",
+        district: NETROKONA_DISTRICT.nameBn,
+        districtName: NETROKONA_DISTRICT.nameBn,
+        upazilaName: "কলমাকান্দা",
+        unionName: "পোগলা",
+        wardNo: "০১",
+        isArchived: false,
+        enrollments: [
+          {
+            schemeId: widowScheme.id,
+            cardNumber: "KLM-WID-404",
+            startDate: new Date("2022-09-01"),
+            status: "ACTIVE",
+            isArchived: false,
+          },
+          {
+            schemeId: vwbScheme.id,
+            cardNumber: "KLM-VWB-405",
+            startDate: new Date("2023-01-10"),
+            status: "ACTIVE", // Dual ACTIVE -> Flags as duplicate
+            isArchived: false,
+          },
+        ],
+      },
+
+      // ======================================================================
+      // UPAZILA 2: DURGAPUR (দুর্গাপুর উপজেলা)
+      // ======================================================================
+
+      // 2.1 Durgapur: ACTIVE (সক্রিয় সুবিধাভোগী)
+      {
+        fullName: "সুকৃতি মানখিন",
+        nameBn: "সুকৃতি মানখিন",
+        nameEn: "Sukriti Mankhin",
+        guardianName: "প্রবীন মারাক",
+        fatherName: "প্রবীন মারাক",
+        gender: "Female",
+        dateOfBirth: new Date("1972-02-14"),
+        nid: "19725055443322110",
+        mobile: "01745678901",
+        district: NETROKONA_DISTRICT.nameBn,
+        districtName: NETROKONA_DISTRICT.nameBn,
+        upazilaName: "দুর্গাপুর",
+        unionName: "বিরিশিরি",
+        wardNo: "০২",
+        isArchived: false,
+        enrollments: [
+          {
+            schemeId: widowScheme.id,
+            cardNumber: "DUR-WID-501",
+            startDate: new Date("2023-02-20"),
+            status: "ACTIVE", // ACTIVE status
+            isArchived: false,
+          },
+        ],
+      },
+
+      // 2.2 Durgapur: SUSPENDED (বাতিলকৃত সুবিধাভোগী - approved by UNO)
+      {
+        fullName: "নির্মল রেমা",
+        nameBn: "নির্মল রেমা",
+        nameEn: "Nirmal Rema",
+        guardianName: "জনসন হাজং",
+        fatherName: "জনসন হাজং",
+        gender: "Male",
+        dateOfBirth: new Date("1963-09-10"),
+        nid: "19635033445566778",
+        mobile: "01777889900",
+        district: NETROKONA_DISTRICT.nameBn,
+        districtName: NETROKONA_DISTRICT.nameBn,
+        upazilaName: "দুর্গাপুর",
+        unionName: "কুল্লাগড়া",
+        wardNo: "০৫",
+        isArchived: false,
+        enrollments: [
+          {
+            schemeId: vgfScheme.id,
+            cardNumber: "DUR-VGF-602",
+            startDate: new Date("2023-05-15"),
+            status: "SUSPENDED", // SUSPENDED status
+            isArchived: false,
+            suspensionReason: "নীতিমালা বহির্ভূত একাধিক ভাতার কারণে ইউএনও কর্তৃক বাতিলাদেশ অনুমোদিত।",
+            removalApproved: true,
+          },
+        ],
+      },
+
+      // 2.3 Durgapur: ARCHIVED (আর্কাইভ সুবিধাভোগী - expired tenure)
+      {
+        fullName: "মনিকা মারাক",
+        nameBn: "মনিকা মারাক",
+        nameEn: "Monika Marak",
+        guardianName: "আলবার্ট চিসিম",
+        fatherName: "আলবার্ট চিসিম",
+        gender: "Female",
+        dateOfBirth: new Date("1982-12-01"),
+        nid: "19825044556677889",
+        mobile: "01799001122",
+        district: NETROKONA_DISTRICT.nameBn,
+        districtName: NETROKONA_DISTRICT.nameBn,
+        upazilaName: "দুর্গাপুর",
+        unionName: "চন্ডিগড়",
+        wardNo: "০৬",
+        isArchived: true,
+        archiveReason: "BENEFIT_EXPIRED",
+        archiveNote: "ভিডব্লিউবি (VWB) দুই বছরের মেয়াদ পূর্ণ হওয়ায় রেকর্ডটি আর্কাইভে স্থানান্তর করা হলো।",
+        archivedAt: new Date("2024-12-31"),
+        archivedBy: "উপজেলা মহিলা বিষয়ক কর্মকর্তা, দুর্গাপুর",
+        enrollments: [
+          {
+            schemeId: vwbScheme.id,
+            cardNumber: "DUR-VWB-703",
+            startDate: new Date("2023-01-01"),
+            status: "ARCHIVED", // ARCHIVED status
+            isArchived: true,
+            archiveReason: "BENEFIT_EXPIRED",
+            archiveNote: "ভিডব্লিউবি কার্যক্রমের ২ বছর মেয়াদ শেষ হওয়ায় সফলভাবে সম্পন্ন ও আর্কাইভ করা হলো।",
+            archivedAt: new Date("2024-12-31"),
+            archivedBy: "উপজেলা মহিলা বিষয়ক কর্মকর্তা, দুর্গাপুর",
+          },
+        ],
+      },
+
+      // 2.4 Durgapur: CROSS-DEPARTMENT DUPLICATE (আন্তঃদপ্তর ডুপ্লিকেট - DSS + Food)
+      {
+        fullName: "প্রদীপ সাংমা",
+        nameBn: "প্রদীপ সাংমা",
+        nameEn: "Prodip Sangma",
+        guardianName: "মৃত ধনেশ্বর সাংমা",
+        fatherName: "মৃত ধনেশ্বর সাংমা",
+        gender: "Male",
+        dateOfBirth: new Date("1955-03-25"),
+        nid: "19555099887711224",
+        mobile: "01711223344",
+        district: NETROKONA_DISTRICT.nameBn,
+        districtName: NETROKONA_DISTRICT.nameBn,
+        upazilaName: "দুর্গাপুর",
+        unionName: "দুর্গাপুর সদর",
+        wardNo: "০১",
+        isArchived: false,
+        enrollments: [
+          {
+            schemeId: oldAgeScheme.id,
+            cardNumber: "DUR-OAA-801",
+            startDate: new Date("2021-10-01"),
+            status: "ACTIVE",
+            isArchived: false,
+          },
+          {
+            schemeId: ffpScheme.id,
+            cardNumber: "DUR-FFP-802",
+            startDate: new Date("2023-04-01"),
+            status: "ACTIVE", // Dual ACTIVE -> Flags as duplicate
+            isArchived: false,
+          },
         ],
       },
     ];
 
-    for (const bData of sampleNetrokonaBeneficiaries) {
+    for (const bData of sampleBeneficiaries) {
       let b = await prisma.beneficiary.findFirst({
         where: { nid: bData.nid },
       });
@@ -473,55 +786,132 @@ async function main() {
             guardianName: bData.guardianName,
             fatherName: bData.fatherName,
             gender: bData.gender,
+            dateOfBirth: bData.dateOfBirth,
             nid: bData.nid,
             mobile: bData.mobile,
             district: bData.district,
+            districtName: bData.districtName,
             upazilaName: bData.upazilaName,
             unionName: bData.unionName,
             wardNo: bData.wardNo,
+            isArchived: bData.isArchived,
+            archiveReason: bData.archiveReason || null,
+            archiveNote: bData.archiveNote || null,
+            archivedAt: bData.archivedAt || null,
+            archivedBy: bData.archivedBy || null,
           },
         });
-        console.log(`  ✓ Created Beneficiary in ${bData.upazilaName}: ${b.fullName}`);
+        console.log(`  ✓ Created Beneficiary in ${bData.upazilaName}: ${b.nameBn || b.fullName} [Archived: ${b.isArchived}]`);
 
         for (const enr of bData.enrollments) {
-          await prisma.enrollment.create({
+          const createdEnr = await prisma.enrollment.create({
             data: {
               beneficiaryId: b.id,
               schemeId: enr.schemeId,
               cardNumber: enr.cardNumber,
               startDate: enr.startDate,
               status: enr.status,
+              isArchived: enr.isArchived || false,
+              archiveReason: enr.archiveReason || null,
+              archiveNote: enr.archiveNote || null,
+              archivedAt: enr.archivedAt || null,
+              archivedBy: enr.archivedBy || null,
+            },
+            include: {
+              scheme: true,
             },
           });
+
+          // If SUSPENDED and removalApproved is true, create corresponding RemovalRequest
+          if (enr.status === "SUSPENDED" && (enr as any).removalApproved) {
+            const unoUser = bData.upazilaName === "কলমাকান্দা" ? kalmakandaUno : durgapurUno;
+            const deptOfficer = bData.upazilaName === "কলমাকান্দা" ? kalmakandaDssUser : durgapurDwaUser;
+
+            if (unoUser && deptOfficer) {
+              await prisma.removalRequest.upsert({
+                where: { enrollmentId: createdEnr.id },
+                update: {
+                  status: "APPROVED",
+                  reviewedAt: new Date(),
+                  reviewedByUserId: unoUser.id,
+                  adminComment: (enr as any).suspensionReason || "আবেদনটি যথাযথ থাকায় অনুমোদনপূর্বক বাতিল করা হলো।",
+                },
+                create: {
+                  enrollmentId: createdEnr.id,
+                  beneficiaryId: b.id,
+                  departmentId: createdEnr.scheme.departmentId,
+                  requestedByUserId: deptOfficer.id,
+                  requestReason: "নীতিমালা বহির্ভূত ভাতা গ্রহণ বা তথ্যের অসঙ্গতি।",
+                  status: "APPROVED",
+                  reviewedByUserId: unoUser.id,
+                  adminComment: (enr as any).suspensionReason || "আবেদনটি যথাযথ থাকায় অনুমোদনপূর্বক বাতিল করা হলো।",
+                  district: NETROKONA_DISTRICT.nameBn,
+                  upazilaName: bData.upazilaName,
+                  reviewedAt: new Date(),
+                },
+              });
+              console.log(`    ↳ Linked APPROVED RemovalRequest for UNO: ${createdEnr.cardNumber}`);
+            }
+          }
         }
       } else {
-        // Ensure district & upazila are updated
+        // Update existing beneficiary
         await prisma.beneficiary.update({
           where: { id: b.id },
           data: {
             district: bData.district,
+            districtName: bData.districtName,
             upazilaName: bData.upazilaName,
             unionName: bData.unionName,
             wardNo: bData.wardNo,
+            isArchived: bData.isArchived,
+            archiveReason: bData.archiveReason || null,
+            archiveNote: bData.archiveNote || null,
+            archivedAt: bData.archivedAt || null,
+            archivedBy: bData.archivedBy || null,
           },
         });
+
+        // Ensure enrollments exist and have matching statuses
+        for (const enr of bData.enrollments) {
+          const existingEnr = await prisma.enrollment.findFirst({
+            where: { beneficiaryId: b.id, schemeId: enr.schemeId },
+          });
+
+          if (existingEnr) {
+            await prisma.enrollment.update({
+              where: { id: existingEnr.id },
+              data: {
+                status: enr.status,
+                isArchived: enr.isArchived || false,
+                archiveReason: enr.archiveReason || null,
+                archiveNote: enr.archiveNote || null,
+                archivedAt: enr.archivedAt || null,
+                archivedBy: enr.archivedBy || null,
+              },
+            });
+          }
+        }
       }
     }
   }
 
   console.log("\n✅ Netrokona District seeding successfully completed!");
-  console.log("-------------------------------------------------------------------");
-  console.log("District Oversight:");
-  console.log("  • Deputy Commissioner (DC): dc@netrokona.gov.bd / admin123 (Full Netrokona View)");
-  console.log("  • System Admin:            admin@upazila.gov.bd / admin123");
-  console.log("\nUpazila Executive Officers (UNOs - password: uno123):");
-  for (const uno of unoOfficers) {
-    console.log(`  • ${uno.upazilaName.padEnd(16)}: uno.${uno.key}@netrokona.gov.bd`);
-  }
-  console.log("\nDepartment Officers (password: admin123):");
-  console.log("  • Social Services: dss.[sadar|kendua|durgapur|kalmakanda|...]@netrokona.gov.bd");
-  console.log("  • Women Affairs:   dwa.[sadar|kendua|durgapur|kalmakanda|...]@netrokona.gov.bd");
-  console.log("-------------------------------------------------------------------");
+  console.log("===================================================================");
+  console.log("District Oversight Account:");
+  console.log("  • District Admin (DC): dc@district.gov.bd / dc123 [Role: DISTRICT_ADMIN]");
+  console.log("  • District Admin (Compat): dc@netrokona.gov.bd / admin123");
+  console.log("  • System Admin:        admin@upazila.gov.bd / admin123 [Role: SUPER_ADMIN]");
+  console.log("\nSample Upazilas with 4 Beneficiary Statuses (ACTIVE, SUSPENDED, ARCHIVED, Duplicates):");
+  console.log("  1. কলমাকান্দা উপজেলা (Kalmakanda):");
+  console.log("     - UNO Login: uno.kalmakanda@netrokona.gov.bd / uno123");
+  console.log("     - DSS Login: dss.kalmakanda@netrokona.gov.bd / admin123");
+  console.log("     - Food Login: food.kalmakanda@netrokona.gov.bd / admin123");
+  console.log("  2. দুর্গাপুর উপজেলা (Durgapur):");
+  console.log("     - UNO Login: uno.durgapur@netrokona.gov.bd / uno123");
+  console.log("     - DSS Login: dss.durgapur@netrokona.gov.bd / admin123");
+  console.log("     - DWA Login: dwa.durgapur@netrokona.gov.bd / admin123");
+  console.log("===================================================================");
 }
 
 main()

@@ -183,7 +183,7 @@ export async function GET(request: Request) {
         enrollments: {
           some: {
             ...(departmentId ? { scheme: { departmentId } } : {}),
-            status: "Active",
+            status: { in: ["ACTIVE", "Active"] },
             isArchived: false,
           },
         },
@@ -193,7 +193,7 @@ export async function GET(request: Request) {
         enrollments: {
           some: {
             ...(departmentId ? { scheme: { departmentId } } : {}),
-            status: { in: ["Suspended", "SUSPENDED"] },
+            status: { in: ["SUSPENDED", "Suspended"] },
             isArchived: false,
           },
         },
@@ -206,7 +206,7 @@ export async function GET(request: Request) {
             enrollments: {
               some: {
                 ...(departmentId ? { scheme: { departmentId } } : {}),
-                OR: [{ isArchived: true }, { status: "Archived" }],
+                OR: [{ isArchived: true }, { status: { in: ["ARCHIVED", "Archived"] } }],
               },
             },
           },
@@ -231,7 +231,7 @@ export async function GET(request: Request) {
               enrollments: {
                 some: {
                   ...(departmentId ? { scheme: { departmentId } } : {}),
-                  status: "Active",
+                  status: { in: ["ACTIVE", "Active"] },
                   isArchived: false,
                 },
               },
@@ -248,7 +248,7 @@ export async function GET(request: Request) {
               enrollments: {
                 some: {
                   ...(departmentId ? { scheme: { departmentId } } : {}),
-                  status: { in: ["Suspended", "SUSPENDED"] },
+                  status: { in: ["SUSPENDED", "Suspended"] },
                   isArchived: false,
                 },
               },
@@ -268,7 +268,7 @@ export async function GET(request: Request) {
                   enrollments: {
                     some: {
                       ...(departmentId ? { scheme: { departmentId } } : {}),
-                      OR: [{ isArchived: true }, { status: "Archived" }],
+                      OR: [{ isArchived: true }, { status: { in: ["ARCHIVED", "Archived"] } }],
                     },
                   },
                 },
