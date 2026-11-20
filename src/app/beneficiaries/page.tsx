@@ -109,7 +109,7 @@ interface Beneficiary {
 }
 
 export default function BeneficiariesPage() {
-  const { currentUser, isSuperAdmin, isDeptOfficer, isUnionViewer } = useAuth();
+  const { currentUser, isSuperAdmin, isDistrictAdmin, isUpazilaAdmin, isDeptOfficer, isUnionViewer } = useAuth();
   const { language, t, formatNumber, formatCurrency, getDepartmentName, getSchemeName } = useLanguage();
 
   const [beneficiaries, setBeneficiaries] = useState<Beneficiary[]>([]);
@@ -123,6 +123,7 @@ export default function BeneficiariesPage() {
   const [gender, setGender] = useState("");
   const [ageGroup, setAgeGroup] = useState("");
   const [selectedDeptId, setSelectedDeptId] = useState("");
+  const [selectedSchemeId, setSelectedSchemeId] = useState("");
 
   // Interactive Status Filter: ALL, ACTIVE, SUSPENDED, ARCHIVED
   const [statusFilter, setStatusFilter] = useState<"ALL" | "ACTIVE" | "SUSPENDED" | "ARCHIVED">("ALL");
@@ -132,6 +133,13 @@ export default function BeneficiariesPage() {
     suspended: 0,
     archived: 0,
   });
+  const [statsSummary, setStatsSummary] = useState<{
+    totalBeneficiaries: number;
+    totalEnrollments: number;
+    activeEnrollments: number;
+    suspendedEnrollments: number;
+    archivedEnrollments: number;
+  } | null>(null);
 
   // Archive Modal State
   const [isArchiveOpen, setIsArchiveOpen] = useState(false);
@@ -315,6 +323,88 @@ export default function BeneficiariesPage() {
     return matched ? matched.unions : [];
   }, [editForm.upazilaName]);
 
+  // Contextual unions available based on selected upazila or user's assigned upazila
+  const availableUnions = useMemo(() => {
+    const targetUpazila = upazila || currentUser.upazilaName;
+    if (!targetUpazila || targetUpazila === "all" || targetUpazila === "সমগ্র জেলা") {
+      const unionSet = new Set<string>();
+      NETROKONA_UPAZILAS.forEach((u) => u.unions.forEach((un) => unionSet.add(un)));
+      return Array.from(unionSet).sort();
+    }
+    const match = NETROKONA_UPAZILAS.find(
+      (u) =>
+        u.nameBn === targetUpazila ||
+        u.nameEn.toLowerCase() === targetUpazila.toLowerCase() ||
+        u.key === targetUpazila.toLowerCase()
+    );
+    return match ? match.unions : [];
+  }, [upazila, currentUser.upazilaName]);
+
+  // Schemes available for selection (filtered by user's department for DEPT_OFFICER or selectedDeptId)
+  const availableSchemes = useMemo(() => {
+    if (isDeptOfficer && currentUser.departmentId) {
+      return schemes.filter((s) => s.departmentId === currentUser.departmentId);
+    }
+    if (selectedDeptId) {
+      return schemes.filter((s) => s.departmentId === selectedDeptId);
+    }
+    return schemes;
+  }, [schemes, isDeptOfficer, currentUser.departmentId, selectedDeptId]);
+
+  // Sync statusFilter from URL on initial page mount
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      const s = params.get("status")?.toUpperCase();
+      if (s === "ACTIVE" || s === "SUSPENDED" || s === "ARCHIVED") {
+        setStatusFilter(s as any);
+      } else if (s === "ALL") {
+        setStatusFilter("ALL");
+      }
+    }
+  }, []);
+
+  // Handle Interactive Status Selection without full page reload
+  const handleSelectStatus = (newStatus: "ALL" | "ACTIVE" | "SUSPENDED" | "ARCHIVED") => {
+    setStatusFilter(newStatus);
+    setCurrentPage(1);
+    if (typeof window !== "undefined") {
+      const url = new URL(window.location.href);
+      if (newStatus === "ALL") {
+        url.searchParams.delete("status");
+      } else {
+        url.searchParams.set("status", newStatus);
+      }
+      window.history.replaceState({}, "", url.toString());
+    }
+  };
+
+  // Fetch KPI scoped stats summary
+  const fetchStatsSummary = async () => {
+    try {
+      const params = new URLSearchParams();
+      if (upazila && upazila !== "all" && upazila !== "সমগ্র জেলা") params.set("upazila", upazila);
+      if (selectedDeptId) params.set("departmentId", selectedDeptId);
+      const res = await fetch(`/api/dashboard/stats?${params.toString()}`);
+      const data = await res.json();
+      if (data?.success && data?.summary) {
+        setStatsSummary({
+          totalBeneficiaries: data.summary.totalBeneficiaries ?? 0,
+          totalEnrollments: data.summary.totalEnrollments ?? 0,
+          activeEnrollments: data.summary.activeEnrollments ?? 0,
+          suspendedEnrollments: data.summary.suspendedEnrollments ?? 0,
+          archivedEnrollments: data.summary.archivedEnrollments ?? 0,
+        });
+      }
+    } catch (err) {
+      console.error("fetchStatsSummary error:", err);
+    }
+  };
+
+  useEffect(() => {
+    fetchStatsSummary();
+  }, [upazila, selectedDeptId, currentUser]);
+
   // Success Feedback
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
@@ -380,12 +470,12 @@ export default function BeneficiariesPage() {
   // Reset to first page when any search/filter changes
   useEffect(() => {
     setCurrentPage(1);
-  }, [search, upazila, union, ward, gender, ageGroup, selectedDeptId, statusFilter]);
+  }, [search, upazila, union, ward, gender, ageGroup, selectedDeptId, selectedSchemeId, statusFilter]);
 
   // Fetch beneficiaries when pagination or filters change
   useEffect(() => {
     fetchBeneficiaries(currentPage, pageSize);
-  }, [currentPage, pageSize, search, upazila, union, ward, gender, ageGroup, selectedDeptId, statusFilter]);
+  }, [currentPage, pageSize, search, upazila, union, ward, gender, ageGroup, selectedDeptId, selectedSchemeId, statusFilter]);
 
   const fetchBeneficiaries = async (pageToFetch = currentPage, limitToFetch = pageSize) => {
     try {
@@ -400,6 +490,7 @@ export default function BeneficiariesPage() {
       if (gender) params.set("gender", gender);
       if (ageGroup) params.set("ageGroup", ageGroup);
       if (selectedDeptId) params.set("departmentId", selectedDeptId);
+      if (selectedSchemeId) params.set("schemeId", selectedSchemeId);
       if (statusFilter && statusFilter !== "ALL") params.set("statusFilter", statusFilter);
 
       const res = await fetch(`/api/beneficiaries?${params.toString()}`);
@@ -478,6 +569,8 @@ export default function BeneficiariesPage() {
         if (gender) params.set("gender", gender);
         if (ageGroup) params.set("ageGroup", ageGroup);
         if (selectedDeptId) params.set("departmentId", selectedDeptId);
+        if (selectedSchemeId) params.set("schemeId", selectedSchemeId);
+        if (statusFilter && statusFilter !== "ALL") params.set("statusFilter", statusFilter);
 
         const res = await fetch(`/api/beneficiaries?${params.toString()}`);
         const data = await res.json();
@@ -910,13 +1003,21 @@ export default function BeneficiariesPage() {
               className={`w-10 h-10 rounded-xl flex items-center justify-center font-bold text-sm ${
                 isSuperAdmin
                   ? "bg-purple-100 text-purple-700"
+                  : isDistrictAdmin
+                  ? "bg-indigo-100 text-indigo-700"
+                  : isUpazilaAdmin
+                  ? "bg-emerald-100 text-emerald-700"
                   : isDeptOfficer
                   ? "bg-blue-100 text-blue-700"
-                  : "bg-emerald-100 text-emerald-700"
+                  : "bg-teal-100 text-teal-700"
               }`}
             >
               {isSuperAdmin ? (
                 <ShieldCheck className="w-5 h-5" />
+              ) : isDistrictAdmin ? (
+                <ShieldCheck className="w-5 h-5" />
+              ) : isUpazilaAdmin ? (
+                <Building2 className="w-5 h-5" />
               ) : isDeptOfficer ? (
                 <Building2 className="w-5 h-5" />
               ) : (
@@ -932,9 +1033,13 @@ export default function BeneficiariesPage() {
                   className={`text-xs font-extrabold px-2 py-0.5 rounded-full ${
                     isSuperAdmin
                       ? "bg-purple-100 text-purple-800 border border-purple-200"
+                      : isDistrictAdmin
+                      ? "bg-indigo-100 text-indigo-800 border border-indigo-200"
+                      : isUpazilaAdmin
+                      ? "bg-emerald-100 text-emerald-800 border border-emerald-200"
                       : isDeptOfficer
                       ? "bg-blue-100 text-blue-800 border border-blue-200"
-                      : "bg-emerald-100 text-emerald-800 border border-emerald-200"
+                      : "bg-teal-100 text-teal-800 border border-teal-200"
                   }`}
                 >
                   {language === "bn" ? currentUser.roleTitleBn : currentUser.roleTitleEn} ({currentUser.name})
@@ -943,8 +1048,16 @@ export default function BeneficiariesPage() {
               <p className="text-xs text-slate-600 mt-0.5">
                 {isSuperAdmin &&
                   (language === "bn"
-                    ? "সকল দপ্তরের সুবিধাভোগীদের কেন্দ্রীয় ডাটাবেজ প্রদর্শিত হচ্ছে।"
+                    ? "সিস্টেম এডমিন: সকল দপ্তরের সুবিধাভোগীদের কেন্দ্রীয় ডাটাবেজ প্রদর্শিত হচ্ছে।"
                     : "Viewing central master database of beneficiaries across all departments.")}
+                {isDistrictAdmin &&
+                  (language === "bn"
+                    ? `জেলা প্রশাসন: ${currentUser.district || "নেত্রকোণা"} জেলার সকল উপজেলা ও দপ্তরের সুবিধাভোগী রেকর্ড প্রদর্শিত হচ্ছে।`
+                    : `District Admin: Viewing beneficiary records across ${currentUser.district || "Netrokona"} district.`)}
+                {isUpazilaAdmin &&
+                  (language === "bn"
+                    ? `উপজেলা প্রশাসন: ${currentUser.upazilaName || "উপজেলা"} এর সকল দপ্তরের সুবিধাভোগীদের তালিকা প্রদর্শিত হচ্ছে।`
+                    : `Upazila Admin: Viewing beneficiaries residing in ${currentUser.upazilaName || "your upazila"}.`)}
                 {isDeptOfficer &&
                   (language === "bn"
                     ? `আপনার দপ্তর (${getDepartmentName({ name: currentUser.departmentName, nameBn: currentUser.departmentNameBn, nameEn: currentUser.departmentNameEn }, "bn") || "দপ্তর"}) এর আওতাভুক্ত সুবিধাভোগীদের তালিকা প্রদর্শিত হচ্ছে।`
@@ -1011,281 +1124,479 @@ export default function BeneficiariesPage() {
 
         {/* 4 Interactive Status Filter Cards */}
         <div className="no-print grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-          {/* 1. All Beneficiaries */}
+          {/* 1. All Beneficiaries (Blue Accent) */}
           <button
             type="button"
-            onClick={() => {
-              setStatusFilter("ALL");
-              setCurrentPage(1);
-            }}
-            className={`text-left p-4 rounded-2xl border transition-all cursor-pointer relative overflow-hidden flex flex-col justify-between ${
+            onClick={() => handleSelectStatus("ALL")}
+            className={`text-left p-4 sm:p-5 rounded-2xl border transition-all cursor-pointer relative overflow-hidden flex flex-col justify-between ${
               statusFilter === "ALL"
-                ? "bg-slate-900 text-white border-slate-900 shadow-md ring-2 ring-slate-900 ring-offset-2"
-                : "bg-white text-slate-800 border-slate-200 hover:border-slate-300 hover:bg-slate-50/80 shadow-xs"
+                ? "bg-blue-50 text-blue-900 border-blue-600 shadow-md ring-2 ring-blue-600 ring-offset-2"
+                : "bg-white text-slate-800 border-slate-200 hover:border-blue-400 hover:bg-blue-50/40 shadow-xs"
             }`}
           >
             <div className="flex items-center justify-between">
               <span className={`text-xs font-bold uppercase tracking-wider ${
-                statusFilter === "ALL" ? "text-slate-300" : "text-slate-500"
+                statusFilter === "ALL" ? "text-blue-900" : "text-slate-500"
               }`}>
                 {language === "bn" ? "সকল সুবিধাভোগী" : "All Beneficiaries"}
               </span>
-              <div className={`w-8 h-8 rounded-xl flex items-center justify-center ${
-                statusFilter === "ALL" ? "bg-white/10 text-white" : "bg-slate-100 text-slate-700"
+              <div className={`w-9 h-9 rounded-xl flex items-center justify-center transition-colors ${
+                statusFilter === "ALL" ? "bg-blue-600 text-white shadow-xs" : "bg-blue-100 text-blue-700"
               }`}>
                 <Users className="w-4 h-4" />
               </div>
             </div>
             <div className="mt-3 flex items-baseline justify-between">
-              <span className="text-2xl sm:text-3xl font-extrabold tracking-tight">
-                {formatNumber(statusCounts.all || 0, language)}
+              <span className="text-2xl sm:text-3xl font-black tracking-tight">
+                {formatNumber(statsSummary?.totalBeneficiaries ?? statusCounts.all, language)}
               </span>
               <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${
-                statusFilter === "ALL" ? "bg-white/20 text-white" : "bg-slate-100 text-slate-600"
+                statusFilter === "ALL" ? "bg-blue-200 text-blue-900 font-bold" : "bg-slate-100 text-slate-600"
               }`}>
-                {language === "bn" ? "মোট রেকর্ড" : "Total"}
+                {language === "bn" ? "সর্বমোট" : "Total"}
               </span>
             </div>
           </button>
 
-          {/* 2. Active Beneficiaries */}
+          {/* 2. Active Beneficiaries (Green Accent) */}
           <button
             type="button"
-            onClick={() => {
-              setStatusFilter("ACTIVE");
-              setCurrentPage(1);
-            }}
-            className={`text-left p-4 rounded-2xl border transition-all cursor-pointer relative overflow-hidden flex flex-col justify-between ${
+            onClick={() => handleSelectStatus("ACTIVE")}
+            className={`text-left p-4 sm:p-5 rounded-2xl border transition-all cursor-pointer relative overflow-hidden flex flex-col justify-between ${
               statusFilter === "ACTIVE"
-                ? "bg-emerald-700 text-white border-emerald-700 shadow-md ring-2 ring-emerald-600 ring-offset-2"
-                : "bg-white text-slate-800 border-slate-200 hover:border-emerald-300 hover:bg-emerald-50/30 shadow-xs"
+                ? "bg-emerald-50 text-emerald-900 border-emerald-600 shadow-md ring-2 ring-emerald-600 ring-offset-2"
+                : "bg-white text-slate-800 border-slate-200 hover:border-emerald-400 hover:bg-emerald-50/40 shadow-xs"
             }`}
           >
             <div className="flex items-center justify-between">
               <span className={`text-xs font-bold uppercase tracking-wider ${
-                statusFilter === "ACTIVE" ? "text-emerald-100" : "text-emerald-700"
+                statusFilter === "ACTIVE" ? "text-emerald-900" : "text-emerald-700"
               }`}>
-                {language === "bn" ? "সক্রিয় সুবিধাভোগী" : "Active Beneficiaries"}
+                {language === "bn" ? "সক্রিয় সুবিধাভোগী" : "Active Beneficiaries"}
               </span>
-              <div className={`w-8 h-8 rounded-xl flex items-center justify-center ${
-                statusFilter === "ACTIVE" ? "bg-white/20 text-white" : "bg-emerald-100 text-emerald-700"
+              <div className={`w-9 h-9 rounded-xl flex items-center justify-center transition-colors ${
+                statusFilter === "ACTIVE" ? "bg-emerald-600 text-white shadow-xs" : "bg-emerald-100 text-emerald-700"
               }`}>
                 <CheckCircle2 className="w-4 h-4" />
               </div>
             </div>
             <div className="mt-3 flex items-baseline justify-between">
-              <span className="text-2xl sm:text-3xl font-extrabold tracking-tight">
-                {formatNumber(statusCounts.active || 0, language)}
+              <span className="text-2xl sm:text-3xl font-black tracking-tight">
+                {formatNumber(statsSummary?.activeEnrollments ?? statusCounts.active, language)}
               </span>
               <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${
-                statusFilter === "ACTIVE" ? "bg-white/20 text-white" : "bg-emerald-100 text-emerald-800"
+                statusFilter === "ACTIVE" ? "bg-emerald-200 text-emerald-900 font-bold" : "bg-emerald-100 text-emerald-800"
               }`}>
-                {language === "bn" ? "নিয়মিত ভাতাভোগী" : "Active"}
+                {language === "bn" ? "সক্রিয় ভাতা" : "Active"}
               </span>
             </div>
           </button>
 
-          {/* 3. Cancelled Beneficiaries */}
+          {/* 3. Cancelled Beneficiaries (Red Accent) */}
           <button
             type="button"
-            onClick={() => {
-              setStatusFilter("SUSPENDED");
-              setCurrentPage(1);
-            }}
-            className={`text-left p-4 rounded-2xl border transition-all cursor-pointer relative overflow-hidden flex flex-col justify-between ${
+            onClick={() => handleSelectStatus("SUSPENDED")}
+            className={`text-left p-4 sm:p-5 rounded-2xl border transition-all cursor-pointer relative overflow-hidden flex flex-col justify-between ${
               statusFilter === "SUSPENDED"
-                ? "bg-rose-700 text-white border-rose-700 shadow-md ring-2 ring-rose-600 ring-offset-2"
-                : "bg-white text-slate-800 border-slate-200 hover:border-rose-300 hover:bg-rose-50/30 shadow-xs"
+                ? "bg-rose-50 text-rose-900 border-rose-600 shadow-md ring-2 ring-rose-600 ring-offset-2"
+                : "bg-white text-slate-800 border-slate-200 hover:border-rose-400 hover:bg-rose-50/40 shadow-xs"
             }`}
           >
             <div className="flex items-center justify-between">
               <span className={`text-xs font-bold uppercase tracking-wider ${
-                statusFilter === "SUSPENDED" ? "text-rose-100" : "text-rose-700"
+                statusFilter === "SUSPENDED" ? "text-rose-900" : "text-rose-700"
               }`}>
                 {language === "bn" ? "বাতিলকৃত সুবিধাভোগী" : "Cancelled Beneficiaries"}
               </span>
-              <div className={`w-8 h-8 rounded-xl flex items-center justify-center ${
-                statusFilter === "SUSPENDED" ? "bg-white/20 text-white" : "bg-rose-100 text-rose-700"
+              <div className={`w-9 h-9 rounded-xl flex items-center justify-center transition-colors ${
+                statusFilter === "SUSPENDED" ? "bg-rose-600 text-white shadow-xs" : "bg-rose-100 text-rose-700"
               }`}>
                 <Ban className="w-4 h-4" />
               </div>
             </div>
             <div className="mt-3 flex items-baseline justify-between">
-              <span className="text-2xl sm:text-3xl font-extrabold tracking-tight">
-                {formatNumber(statusCounts.suspended || 0, language)}
+              <span className="text-2xl sm:text-3xl font-black tracking-tight">
+                {formatNumber(statsSummary?.suspendedEnrollments ?? statusCounts.suspended, language)}
               </span>
               <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${
-                statusFilter === "SUSPENDED" ? "bg-white/20 text-white" : "bg-rose-100 text-rose-800"
+                statusFilter === "SUSPENDED" ? "bg-rose-200 text-rose-900 font-bold" : "bg-rose-100 text-rose-800"
               }`}>
-                {language === "bn" ? "স্থগিত / বাতিল" : "Cancelled"}
+                {language === "bn" ? "বাতিলকৃত" : "Cancelled"}
               </span>
             </div>
           </button>
 
-          {/* 4. Archived Beneficiaries */}
+          {/* 4. Archived Beneficiaries (Slate Accent) */}
           <button
             type="button"
-            onClick={() => {
-              setStatusFilter("ARCHIVED");
-              setCurrentPage(1);
-            }}
-            className={`text-left p-4 rounded-2xl border transition-all cursor-pointer relative overflow-hidden flex flex-col justify-between ${
+            onClick={() => handleSelectStatus("ARCHIVED")}
+            className={`text-left p-4 sm:p-5 rounded-2xl border transition-all cursor-pointer relative overflow-hidden flex flex-col justify-between ${
               statusFilter === "ARCHIVED"
-                ? "bg-purple-700 text-white border-purple-700 shadow-md ring-2 ring-purple-600 ring-offset-2"
-                : "bg-white text-slate-800 border-slate-200 hover:border-purple-300 hover:bg-purple-50/30 shadow-xs"
+                ? "bg-slate-100 text-slate-900 border-slate-600 shadow-md ring-2 ring-slate-600 ring-offset-2"
+                : "bg-white text-slate-800 border-slate-200 hover:border-slate-400 hover:bg-slate-50 shadow-xs"
             }`}
           >
             <div className="flex items-center justify-between">
               <span className={`text-xs font-bold uppercase tracking-wider ${
-                statusFilter === "ARCHIVED" ? "text-purple-100" : "text-purple-700"
+                statusFilter === "ARCHIVED" ? "text-slate-900" : "text-slate-600"
               }`}>
                 {language === "bn" ? "আর্কাইভ সুবিধাভোগী" : "Archived Beneficiaries"}
               </span>
-              <div className={`w-8 h-8 rounded-xl flex items-center justify-center ${
-                statusFilter === "ARCHIVED" ? "bg-white/20 text-white" : "bg-purple-100 text-purple-700"
+              <div className={`w-9 h-9 rounded-xl flex items-center justify-center transition-colors ${
+                statusFilter === "ARCHIVED" ? "bg-slate-700 text-white shadow-xs" : "bg-slate-200 text-slate-700"
               }`}>
                 <FolderArchive className="w-4 h-4" />
               </div>
             </div>
             <div className="mt-3 flex items-baseline justify-between">
-              <span className="text-2xl sm:text-3xl font-extrabold tracking-tight">
-                {formatNumber(statusCounts.archived || 0, language)}
+              <span className="text-2xl sm:text-3xl font-black tracking-tight">
+                {formatNumber(statsSummary?.archivedEnrollments ?? statusCounts.archived, language)}
               </span>
               <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${
-                statusFilter === "ARCHIVED" ? "bg-white/20 text-white" : "bg-purple-100 text-purple-800"
+                statusFilter === "ARCHIVED" ? "bg-slate-300 text-slate-900 font-bold" : "bg-slate-200 text-slate-700"
               }`}>
-                {language === "bn" ? "মেয়াদোত্তীর্ণ / মৃত" : "Archived"}
+                {language === "bn" ? "আর্কাইভ" : "Archived"}
               </span>
             </div>
           </button>
         </div>
 
-        {/* Filters */}
-        <div className="no-print bg-white rounded-2xl p-4 shadow-xs border border-slate-200">
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
-            {/* Search */}
-            <div className="relative">
-              <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
-              <input
-                type="text"
-                placeholder={t.beneficiariesPage.searchPlaceholder}
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="w-full min-h-[44px] pl-9 pr-3 py-2 rounded-xl border border-slate-300 text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-emerald-600 bg-white"
-              />
+        {/* Dynamic Contextual Filters */}
+        <div className="no-print bg-white rounded-2xl p-4 shadow-xs border border-slate-200 space-y-3">
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-2.5">
+            <div className="flex items-center gap-2">
+              <Filter className="w-4 h-4 text-emerald-700" />
+              <span className="text-xs font-bold text-slate-800 uppercase tracking-wider">
+                {language === "bn" ? "ফিল্টারিং এবং অনুসন্ধান" : "Filtering & Search"}
+              </span>
+              <span className="text-[11px] font-medium text-slate-500">
+                (
+                {isDistrictAdmin || isSuperAdmin
+                  ? (language === "bn" ? "জেলা পর্যায় ফিল্টার" : "District Level Scope")
+                  : isUpazilaAdmin
+                  ? (language === "bn" ? `উপজেলা পর্যায় (${currentUser.upazilaName || "উপজেলা"})` : `Upazila Scope (${currentUser.upazilaName})`)
+                  : isDeptOfficer
+                  ? (language === "bn" ? `দপ্তর পর্যায় (${currentUser.departmentName || "দপ্তর"})` : `Department Scope (${currentUser.departmentName})`)
+                  : (language === "bn" ? `ইউনিয়ন পর্যায় (${currentUser.unionName || "ইউনিয়ন"})` : `Union Scope (${currentUser.unionName})`)
+                }
+                )
+              </span>
             </div>
 
-            {/* Department Filter (Super Admin sees all, Dept Officer is locked) */}
-            <div className="relative">
-              <select
-                value={selectedDeptId}
-                onChange={(e) => setSelectedDeptId(e.target.value)}
-                disabled={isDeptOfficer}
-                className={`w-full min-h-[44px] px-3 py-2 rounded-xl border text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-emerald-600 ${
-                  isDeptOfficer
-                    ? "bg-slate-100 border-slate-300 text-slate-600 cursor-not-allowed"
-                    : "border-slate-300 bg-white text-slate-800"
-                }`}
-              >
-                {!isDeptOfficer && (
-                  <option value="">{t.beneficiariesPage.allDepartments}</option>
-                )}
-                {departments.map((dept) => (
-                  <option key={dept.id} value={dept.id}>
-                    {getDepartmentName(dept, language)}
-                  </option>
-                ))}
-              </select>
-              {isDeptOfficer && (
-                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] text-amber-700 font-semibold flex items-center gap-0.5">
-                  <Lock className="w-3 h-3" /> {t.common.locked}
-                </span>
-              )}
-            </div>
-
-            {/* Upazila Filter (Netrokona) */}
-            <div className="relative">
-              <select
-                value={upazila}
-                onChange={(e) => {
-                  setUpazila(e.target.value);
-                  setUnion("");
+            {/* Reset Filters button if any filter is active */}
+            {(search || (upazila && (isDistrictAdmin || isSuperAdmin)) || (selectedDeptId && !isDeptOfficer) || selectedSchemeId || (union && !isUnionViewer) || ward || gender || ageGroup) && (
+              <button
+                type="button"
+                onClick={() => {
+                  setSearch("");
+                  if (isDistrictAdmin || isSuperAdmin) setUpazila("");
+                  if (!isDeptOfficer) setSelectedDeptId("");
+                  setSelectedSchemeId("");
+                  if (!isUnionViewer) setUnion("");
+                  setWard("");
+                  setGender("");
+                  setAgeGroup("");
                 }}
-                disabled={Boolean(currentUser.upazilaName)}
-                className={`w-full min-h-[44px] px-3 py-2 rounded-xl border text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-emerald-600 ${
-                  currentUser.upazilaName
-                    ? "bg-slate-100 border-slate-300 text-slate-700 font-semibold cursor-not-allowed"
-                    : "border-slate-300 bg-white text-slate-800"
-                }`}
+                className="inline-flex items-center gap-1 text-[11px] font-semibold text-rose-600 hover:text-rose-700 bg-rose-50 hover:bg-rose-100 px-2.5 py-1 rounded-lg border border-rose-200 transition-colors cursor-pointer"
               >
-                <option value="">{language === "bn" ? "সকল উপজেলা (নেত্রকোণা)" : "All Upazilas (Netrokona)"}</option>
-                {NETROKONA_UPAZILAS.map((upz) => (
-                  <option key={upz.key} value={upz.nameBn}>
-                    {upz.nameBn}
-                  </option>
-                ))}
+                <RotateCcw className="w-3 h-3" />
+                {language === "bn" ? "ফিল্টার রিসেট" : "Reset Filters"}
+              </button>
+            )}
+          </div>
+
+          {/* Contextual Filters: DISTRICT_ADMIN / SUPER_ADMIN */}
+          {(isDistrictAdmin || isSuperAdmin) && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+              {/* 1. Upazila Dropdown */}
+              <div>
+                <label className="block text-[11px] font-semibold text-slate-600 mb-1">
+                  {language === "bn" ? "উপজেলা নির্বাচন" : "Select Upazila"}
+                </label>
+                <select
+                  value={upazila}
+                  onChange={(e) => {
+                    setUpazila(e.target.value);
+                    setUnion("");
+                  }}
+                  className="w-full min-h-[42px] px-3 py-2 rounded-xl border border-slate-300 bg-white text-xs sm:text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-600"
+                >
+                  <option value="">{language === "bn" ? "সকল উপজেলা (নেত্রকোণা)" : "All Upazilas (Netrokona)"}</option>
+                  {NETROKONA_UPAZILAS.map((upz) => (
+                    <option key={upz.key} value={upz.nameBn}>
+                      {upz.nameBn}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* 2. Department Dropdown */}
+              <div>
+                <label className="block text-[11px] font-semibold text-slate-600 mb-1">
+                  {language === "bn" ? "দপ্তর নির্বাচন" : "Select Department"}
+                </label>
+                <select
+                  value={selectedDeptId}
+                  onChange={(e) => setSelectedDeptId(e.target.value)}
+                  className="w-full min-h-[42px] px-3 py-2 rounded-xl border border-slate-300 bg-white text-xs sm:text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-600"
+                >
+                  <option value="">{t.beneficiariesPage.allDepartments}</option>
+                  {departments.map((dept) => (
+                    <option key={dept.id} value={dept.id}>
+                      {getDepartmentName(dept, language)}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* 3. Union Dropdown */}
+              <div>
+                <label className="block text-[11px] font-semibold text-slate-600 mb-1">
+                  {language === "bn" ? "ইউনিয়ন নির্বাচন" : "Select Union"}
+                </label>
+                <select
+                  value={union}
+                  onChange={(e) => setUnion(e.target.value)}
+                  className="w-full min-h-[42px] px-3 py-2 rounded-xl border border-slate-300 bg-white text-xs sm:text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-600"
+                >
+                  <option value="">{language === "bn" ? "সকল ইউনিয়ন" : "All Unions"}</option>
+                  {availableUnions.map((u) => (
+                    <option key={u} value={u}>
+                      {u}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* 4. Search Box */}
+              <div>
+                <label className="block text-[11px] font-semibold text-slate-600 mb-1">
+                  {language === "bn" ? "অনুসন্ধান (নাম / এনআইডি / মোবাইল)" : "Search (Name / NID / Mobile)"}
+                </label>
+                <div className="relative">
+                  <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                  <input
+                    type="text"
+                    placeholder={t.beneficiariesPage.searchPlaceholder}
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    className="w-full min-h-[42px] pl-9 pr-3 py-2 rounded-xl border border-slate-300 text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-emerald-600 bg-white"
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Contextual Filters: UPAZILA_ADMIN */}
+          {isUpazilaAdmin && !isDistrictAdmin && !isSuperAdmin && (
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              {/* 1. Department Dropdown */}
+              <div>
+                <label className="block text-[11px] font-semibold text-slate-600 mb-1">
+                  {language === "bn" ? "দপ্তর নির্বাচন" : "Select Department"}
+                </label>
+                <select
+                  value={selectedDeptId}
+                  onChange={(e) => setSelectedDeptId(e.target.value)}
+                  className="w-full min-h-[42px] px-3 py-2 rounded-xl border border-slate-300 bg-white text-xs sm:text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-600"
+                >
+                  <option value="">{t.beneficiariesPage.allDepartments}</option>
+                  {departments.map((dept) => (
+                    <option key={dept.id} value={dept.id}>
+                      {getDepartmentName(dept, language)}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* 2. Union Dropdown */}
+              <div>
+                <label className="block text-[11px] font-semibold text-slate-600 mb-1">
+                  {language === "bn" ? "ইউনিয়ন নির্বাচন" : "Select Union"}
+                </label>
+                <select
+                  value={union}
+                  onChange={(e) => setUnion(e.target.value)}
+                  className="w-full min-h-[42px] px-3 py-2 rounded-xl border border-slate-300 bg-white text-xs sm:text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-600"
+                >
+                  <option value="">{language === "bn" ? "সকল ইউনিয়ন" : "All Unions"}</option>
+                  {availableUnions.map((u) => (
+                    <option key={u} value={u}>
+                      {u}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* 3. Search Box */}
+              <div>
+                <label className="block text-[11px] font-semibold text-slate-600 mb-1">
+                  {language === "bn" ? "অনুসন্ধান (নাম / এনআইডি / মোবাইল)" : "Search (Name / NID / Mobile)"}
+                </label>
+                <div className="relative">
+                  <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                  <input
+                    type="text"
+                    placeholder={t.beneficiariesPage.searchPlaceholder}
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    className="w-full min-h-[42px] pl-9 pr-3 py-2 rounded-xl border border-slate-300 text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-emerald-600 bg-white"
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Contextual Filters: DEPT_OFFICER (Department Dropdown is HIDDEN) */}
+          {isDeptOfficer && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+              {/* 1. Scheme Dropdown */}
+              <div>
+                <label className="block text-[11px] font-semibold text-slate-600 mb-1">
+                  {language === "bn" ? "কর্মসূচি নির্বাচন" : "Select Scheme"}
+                </label>
+                <select
+                  value={selectedSchemeId}
+                  onChange={(e) => setSelectedSchemeId(e.target.value)}
+                  className="w-full min-h-[42px] px-3 py-2 rounded-xl border border-slate-300 bg-white text-xs sm:text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-600"
+                >
+                  <option value="">{language === "bn" ? "সকল কর্মসূচি" : "All Schemes"}</option>
+                  {availableSchemes.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {getSchemeName(s, language)}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* 2. Union Dropdown */}
+              <div>
+                <label className="block text-[11px] font-semibold text-slate-600 mb-1">
+                  {language === "bn" ? "ইউনিয়ন নির্বাচন" : "Select Union"}
+                </label>
+                <select
+                  value={union}
+                  onChange={(e) => setUnion(e.target.value)}
+                  className="w-full min-h-[42px] px-3 py-2 rounded-xl border border-slate-300 bg-white text-xs sm:text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-600"
+                >
+                  <option value="">{language === "bn" ? "সকল ইউনিয়ন" : "All Unions"}</option>
+                  {availableUnions.map((u) => (
+                    <option key={u} value={u}>
+                      {u}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* 3. Ward Dropdown */}
+              <div>
+                <label className="block text-[11px] font-semibold text-slate-600 mb-1">
+                  {language === "bn" ? "ওয়ার্ড নির্বাচন" : "Select Ward"}
+                </label>
+                <select
+                  value={ward}
+                  onChange={(e) => setWard(e.target.value)}
+                  className="w-full min-h-[42px] px-3 py-2 rounded-xl border border-slate-300 bg-white text-xs sm:text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-600"
+                >
+                  <option value="">{language === "bn" ? "সকল ওয়ার্ড" : "All Wards"}</option>
+                  {["১", "২", "৩", "৪", "৫", "৬", "৭", "৮", "৯"].map((w, idx) => (
+                    <option key={idx} value={String(idx + 1)}>
+                      {language === "bn" ? `ওয়ার্ড ${w}` : `Ward ${idx + 1}`}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* 4. Search Box */}
+              <div>
+                <label className="block text-[11px] font-semibold text-slate-600 mb-1">
+                  {language === "bn" ? "অনুসন্ধান (নাম / এনআইডি / মোবাইল)" : "Search (Name / NID / Mobile)"}
+                </label>
+                <div className="relative">
+                  <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                  <input
+                    type="text"
+                    placeholder={t.beneficiariesPage.searchPlaceholder}
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    className="w-full min-h-[42px] pl-9 pr-3 py-2 rounded-xl border border-slate-300 text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-emerald-600 bg-white"
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Contextual Filters: UNION_VIEWER */}
+          {isUnionViewer && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {/* 1. Ward Dropdown */}
+              <div>
+                <label className="block text-[11px] font-semibold text-slate-600 mb-1">
+                  {language === "bn" ? "ওয়ার্ড নির্বাচন" : "Select Ward"}
+                </label>
+                <select
+                  value={ward}
+                  onChange={(e) => setWard(e.target.value)}
+                  className="w-full min-h-[42px] px-3 py-2 rounded-xl border border-slate-300 bg-white text-xs sm:text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-600"
+                >
+                  <option value="">{language === "bn" ? "সকল ওয়ার্ড" : "All Wards"}</option>
+                  {["১", "২", "৩", "৪", "৫", "৬", "৭", "৮", "৯"].map((w, idx) => (
+                    <option key={idx} value={String(idx + 1)}>
+                      {language === "bn" ? `ওয়ার্ড ${w}` : `Ward ${idx + 1}`}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* 2. Search Box */}
+              <div>
+                <label className="block text-[11px] font-semibold text-slate-600 mb-1">
+                  {language === "bn" ? "অনুসন্ধান (নাম / এনআইডি / মোবাইল)" : "Search (Name / NID / Mobile)"}
+                </label>
+                <div className="relative">
+                  <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                  <input
+                    type="text"
+                    placeholder={t.beneficiariesPage.searchPlaceholder}
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    className="w-full min-h-[42px] pl-9 pr-3 py-2 rounded-xl border border-slate-300 text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-emerald-600 bg-white"
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Secondary Demographics Filters (Gender & Age Group) */}
+          <div className="pt-2 border-t border-slate-100 flex flex-wrap items-center gap-3">
+            <div className="flex items-center gap-1.5 text-xs text-slate-500 font-medium">
+              <span>{language === "bn" ? "অতিরিক্ত ফিল্টার:" : "Demographics:"}</span>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <select
+                value={gender}
+                onChange={(e) => setGender(e.target.value)}
+                className="px-2.5 py-1.5 rounded-lg border border-slate-200 text-xs bg-slate-50 text-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-600"
+              >
+                <option value="">{t.beneficiariesPage.allGenders}</option>
+                <option value="Female">{t.common.female}</option>
+                <option value="Male">{t.common.male}</option>
+                <option value="Other">{t.common.other}</option>
               </select>
-              {currentUser.upazilaName && (
-                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] text-amber-700 font-semibold flex items-center gap-0.5">
-                  <Lock className="w-3 h-3" /> {t.common.locked}
-                </span>
-              )}
+
+              <select
+                value={ageGroup}
+                onChange={(e) => setAgeGroup(e.target.value)}
+                className="px-2.5 py-1.5 rounded-lg border border-slate-200 text-xs bg-slate-50 text-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-600"
+              >
+                <option value="">{t.beneficiariesPage.allAges}</option>
+                <option value="0-17">{t.beneficiariesPage.ageGroupChildren}</option>
+                <option value="18-35">{t.beneficiariesPage.ageGroupYouth}</option>
+                <option value="36-59">{t.beneficiariesPage.ageGroupAdult}</option>
+                <option value="60+">{t.beneficiariesPage.ageGroupSenior}</option>
+              </select>
             </div>
-
-            {/* Union Filter */}
-            <div className="relative">
-              <input
-                type="text"
-                placeholder={t.beneficiariesPage.filterUnionPlaceholder}
-                value={union}
-                onChange={(e) => setUnion(e.target.value)}
-                disabled={isUnionViewer}
-                className={`w-full min-h-[44px] px-3 py-2 rounded-xl border text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-emerald-600 ${
-                  isUnionViewer
-                    ? "bg-slate-100 border-slate-300 text-slate-600 cursor-not-allowed"
-                    : "border-slate-300 bg-white"
-                }`}
-              />
-              {isUnionViewer && (
-                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] text-amber-700 font-semibold flex items-center gap-0.5">
-                  <Lock className="w-3 h-3" /> {t.common.locked}
-                </span>
-              )}
-            </div>
-
-            {/* Ward Filter */}
-            <input
-              type="text"
-              placeholder={t.beneficiariesPage.wardPlaceholder}
-              value={ward}
-              onChange={(e) => setWard(e.target.value)}
-              className="w-full min-h-[44px] px-3 py-2 rounded-xl border border-slate-300 text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-emerald-600 bg-white"
-            />
-
-            {/* Gender Filter */}
-            <select
-              value={gender}
-              onChange={(e) => setGender(e.target.value)}
-              className="w-full min-h-[44px] px-3 py-2 rounded-xl border border-slate-300 text-xs sm:text-sm bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-600"
-            >
-              <option value="">{t.beneficiariesPage.allGenders}</option>
-              <option value="Female">{t.common.female}</option>
-              <option value="Male">{t.common.male}</option>
-              <option value="Other">{t.common.other}</option>
-            </select>
-
-            {/* Age Group Filter */}
-            <select
-              value={ageGroup}
-              onChange={(e) => setAgeGroup(e.target.value)}
-              className="w-full min-h-[44px] px-3 py-2 rounded-xl border border-slate-300 text-xs sm:text-sm bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-600"
-            >
-              <option value="">{t.beneficiariesPage.allAges}</option>
-              <option value="0-17">{t.beneficiariesPage.ageGroupChildren}</option>
-              <option value="18-35">{t.beneficiariesPage.ageGroupYouth}</option>
-              <option value="36-59">{t.beneficiariesPage.ageGroupAdult}</option>
-              <option value="60+">{t.beneficiariesPage.ageGroupSenior}</option>
-            </select>
           </div>
         </div>
 

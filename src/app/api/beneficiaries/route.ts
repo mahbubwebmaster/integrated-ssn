@@ -82,6 +82,7 @@ export async function GET(request: Request) {
     const ward = searchParams.get("ward")?.trim() || "";
     const gender = searchParams.get("gender")?.trim() || "";
     const departmentId = searchParams.get("departmentId")?.trim() || "";
+    const schemeId = searchParams.get("schemeId")?.trim() || "";
     const ageGroup = searchParams.get("ageGroup")?.trim() || "";
     const minAge = searchParams.get("minAge")?.trim() || "";
     const maxAge = searchParams.get("maxAge")?.trim() || "";
@@ -167,6 +168,17 @@ export async function GET(request: Request) {
             scheme: {
               departmentId: departmentId,
             },
+          },
+        },
+      });
+    }
+
+    // If schemeId is provided (e.g. for DEPT_OFFICER scheme filtering)
+    if (schemeId) {
+      andConditions.push({
+        enrollments: {
+          some: {
+            schemeId: schemeId,
           },
         },
       });
