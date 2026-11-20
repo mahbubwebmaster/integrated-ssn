@@ -1201,18 +1201,18 @@ export default function ExecutiveDashboard() {
           ) : (
             <div className="border border-slate-200 rounded-2xl overflow-hidden shadow-xs w-full max-w-full">
               <div className="w-full max-w-full overflow-x-auto">
-                <table className="w-full min-w-[850px] text-left text-xs border-collapse">
-                  <thead className="bg-slate-100/80 text-slate-700 font-semibold uppercase tracking-wider text-[11px] border-b border-slate-200 whitespace-nowrap">
+                <table className="w-full text-left text-xs border-collapse">
+                  <thead className="bg-slate-100/90 text-slate-700 font-semibold uppercase tracking-wider text-[11px] border-b border-slate-200">
                   <tr>
-                    <th className="py-3 px-4">{t.dashboard.colBeneficiary}</th>
-                    <th className="py-3 px-4">{language === "bn" ? "জাতীয় পরিচয়পত্র / জন্ম নিবন্ধন" : "NID / BRN"}</th>
-                    <th className="py-3 px-4">{language === "bn" ? "ঠিকানা (উপজেলা ও ইউনিয়ন)" : "Address (Upazila & Union)"}</th>
-                    <th className="py-3 px-4">{t.dashboard.colActiveSchemes}</th>
-                    <th className="py-3 px-4">{t.dashboard.colTotalReceived}</th>
-                    <th className="py-3 px-4 text-red-700 bg-red-50/70">
+                    <th className="py-3 px-3 w-[20%]">{t.dashboard.colBeneficiary}</th>
+                    <th className="py-3 px-3 w-[15%]">{language === "bn" ? "জাতীয় পরিচয়পত্র / জন্ম নিবন্ধন" : "NID / BRN"}</th>
+                    <th className="py-3 px-3 w-[15%]">{language === "bn" ? "ঠিকানা (উপজেলা ও ইউনিয়ন)" : "Address (Upazila & Union)"}</th>
+                    <th className="py-3 px-3 w-[22%]">{t.dashboard.colActiveSchemes}</th>
+                    <th className="py-3 px-3 w-[10%]">{t.dashboard.colTotalReceived}</th>
+                    <th className="py-3 px-3 w-[10%] text-red-700 bg-red-50/70">
                       {t.dashboard.colExcessAmount}
                     </th>
-                    <th className="py-3 px-4 text-center print:hidden">
+                    <th className="py-3 px-3 w-[8%] text-center print:hidden">
                       {t.dashboard.colActions}
                     </th>
                   </tr>
@@ -1229,7 +1229,7 @@ export default function ExecutiveDashboard() {
                           className="hover:bg-slate-50/80 transition-colors"
                         >
                           {/* 1. Name & Guardian */}
-                          <td className="py-3.5 px-4">
+                          <td className="py-3 px-3">
                             <div className="font-bold text-slate-900 text-sm">
                               {dup.fullName}
                             </div>
@@ -1252,7 +1252,7 @@ export default function ExecutiveDashboard() {
                           </td>
 
                           {/* 2. NID / BRN */}
-                          <td className="py-3.5 px-4 font-mono">
+                          <td className="py-3 px-3 font-mono">
                             {dup.nid ? (
                               <div>
                                 <span className="font-semibold text-slate-900">
@@ -1281,7 +1281,7 @@ export default function ExecutiveDashboard() {
                           </td>
 
                           {/* 3. Address: Upazila, Union & Ward */}
-                          <td className="py-3.5 px-4">
+                          <td className="py-3 px-3">
                             <div className="font-semibold text-slate-900">
                               {dup.upazilaName || "উপজেলা নির্ধারিত নেই"}, {dup.unionName}
                             </div>
@@ -1293,7 +1293,7 @@ export default function ExecutiveDashboard() {
                           </td>
 
                           {/* 4. Active Schemes List */}
-                          <td className="py-3.5 px-4 space-y-1.5 max-w-xs">
+                          <td className="py-3 px-3 space-y-1.5">
                             {/* Primary Entitled Scheme (Legitimate) */}
                             <div className="p-1.5 rounded-lg bg-emerald-50 border border-emerald-200 text-[11px]">
                               <div className="flex items-center justify-between gap-1 font-semibold text-emerald-900">
@@ -1350,7 +1350,7 @@ export default function ExecutiveDashboard() {
                           </td>
 
                           {/* 5. Total Monthly Received */}
-                          <td className="py-3.5 px-4 font-black text-slate-900 text-sm">
+                          <td className="py-3 px-3 font-black text-slate-900 text-sm">
                             {formatCurrency(totalReceived)}
                             <div className="text-[10px] text-slate-400 font-normal">
                               {formatNumber(dup.activeEnrollmentCount)} {language === "bn" ? "টি কর্মসূচিতে" : "programs"}
@@ -1358,7 +1358,7 @@ export default function ExecutiveDashboard() {
                           </td>
 
                           {/* 6. Excess Amount (Highlighted in Red) */}
-                          <td className="py-3.5 px-4 bg-red-50/70 border-x border-red-100">
+                          <td className="py-3 px-3 bg-red-50/70 border-x border-red-100">
                             <div className="text-base font-black text-red-700">
                               +{formatCurrency(dup.excessMonthlyAmount)}
                               <span className="text-[10px] font-medium text-red-600 block sm:inline sm:ml-1">
@@ -1385,8 +1385,8 @@ export default function ExecutiveDashboard() {
                           </td>
 
                           {/* 7. Action Buttons */}
-                          <td className="py-3.5 px-4 print:hidden">
-                            <div className="flex flex-col gap-1.5 min-w-[150px]">
+                          <td className="py-3 px-3 print:hidden">
+                            <div className="flex flex-col gap-1.5 w-full min-w-0">
                               {/* Upazila Admin: Review requests & take administrative decision */}
                               {isUpazilaAdmin && (
                                 <Link

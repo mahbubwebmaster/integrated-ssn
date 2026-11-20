@@ -177,7 +177,7 @@ export function AppShell({ children }: AppShellProps) {
       {/* =========================================================================
           1. DESKTOP PERMANENT LEFT SIDEBAR (lg:flex w-64)
       ========================================================================= */}
-      <aside className="hidden lg:flex fixed inset-y-0 left-0 w-64 bg-slate-900 border-r border-slate-800 text-white z-30 flex-col shadow-xl select-none">
+      <aside className="hidden lg:flex fixed inset-y-0 left-0 w-64 bg-slate-900 border-r border-slate-800 text-white z-40 flex-col shadow-xl select-none">
         {/* Brand Header */}
         <div className="p-4 border-b border-slate-800/80 bg-slate-950/60">
           <Link href="/" className="flex items-center gap-3 group">
@@ -319,7 +319,7 @@ export function AppShell({ children }: AppShellProps) {
       {/* =========================================================================
           2. MOBILE & TABLET STICKY TOP NAVBAR (lg:hidden)
       ========================================================================= */}
-      <div className="lg:hidden sticky top-0 z-40 bg-slate-900 border-b border-slate-800 text-white shadow-md no-print">
+      <div className="lg:hidden fixed top-0 left-0 right-0 z-40 bg-slate-900 border-b border-slate-800 text-white shadow-md no-print">
         {/* Micro Govt Top Notice */}
         <div className="bg-emerald-950 px-3 py-1 text-[11px] text-emerald-200 border-b border-emerald-900/50 flex items-center justify-between">
           <div className="flex items-center gap-1.5 truncate">
@@ -564,7 +564,7 @@ export function AppShell({ children }: AppShellProps) {
       ========================================================================= */}
       <div className="lg:pl-64 flex flex-col flex-1 min-h-screen min-w-0 w-full max-w-full overflow-x-hidden">
         {/* Desktop Top Micro Bar */}
-        <header className="hidden lg:flex no-print bg-slate-900 border-b border-slate-800 px-6 py-2.5 items-center justify-between text-xs text-slate-300 shadow-sm sticky top-0 z-20">
+        <header className="hidden lg:flex no-print fixed top-0 right-0 left-64 h-11 bg-slate-900 border-b border-slate-800 px-6 items-center justify-between text-xs text-slate-300 shadow-sm z-30">
           <div className="flex items-center gap-2">
             <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
             <span className="font-semibold text-slate-200">
@@ -604,7 +604,7 @@ export function AppShell({ children }: AppShellProps) {
         </header>
 
         {/* Dynamic Page Content */}
-        <main className="flex-1 w-full min-w-0 max-w-full">{children}</main>
+        <main className="flex-1 w-full min-w-0 max-w-full pt-[82px] lg:pt-11">{children}</main>
 
         {/* Global Footer */}
         <footer className="no-print border-t border-slate-200 bg-white py-6 text-center text-xs text-slate-500">
