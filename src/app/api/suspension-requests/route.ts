@@ -71,9 +71,17 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   try {
     const session = await auth();
+    if (!session?.user && process.env.NODE_ENV === "production") {
+      return NextResponse.json(
+        { success: false, error: "অননুমোদিত অ্যাক্সেস। অনুগ্রহ করে লগইন করুন (Unauthorized)" },
+        { status: 401 }
+      );
+    }
+
     const body = await request.json();
     const enrollmentId = body.enrollmentId;
-    const requestedByUserId = body.requestedByUserId || body.requestedById || session?.user?.id;
+    // In production, strictly enforce session user to prevent identity spoofing
+    const requestedByUserId = session?.user?.id || (body.requestedByUserId || body.requestedById);
     const requestReason = body.requestReason || body.reason;
 
     if (!enrollmentId || !requestedByUserId || !requestReason?.trim()) {

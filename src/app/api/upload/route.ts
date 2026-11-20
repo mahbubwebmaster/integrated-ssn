@@ -6,35 +6,40 @@ import { processBatchUpload, CleanedRecord } from "@/lib/dedup";
 export async function POST(request: Request) {
   try {
     const session = await auth();
+    if (!session?.user) {
+      return NextResponse.json(
+        { success: false, error: "অননুমোদিত অ্যাক্সেস। ডাটা আপলোড করার জন্য অনুগ্রহ করে লগইন করুন (Unauthorized)" },
+        { status: 401 }
+      );
+    }
+
     const body = await request.json();
     const { departmentId, schemeId, records, fileName } = body;
 
     // Role-based authorization
-    if (session?.user) {
-      const role = session.user.role;
-      // 1. UNION_VIEWER is strictly blocked from uploading
-      if (role === "UNION_VIEWER") {
+    const role = session.user.role;
+    // 1. UNION_VIEWER is strictly blocked from uploading
+    if (role === "UNION_VIEWER") {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "অ্যাক্সেস ডিনাইড: ইউনিয়ন পর্যবেক্ষক অ্যাকাউন্টে ডাটা আপলোড করার অনুমতি নেই (Access Denied: UNION_VIEWER cannot upload data).",
+        },
+        { status: 403 }
+      );
+    }
+
+    // 2. DEPT_OFFICER can ONLY upload data for their assigned department
+    if (role === "DEPT_OFFICER" || role === "DEPARTMENT_OFFICER") {
+      const userDeptId = session.user.departmentId;
+      if (userDeptId && departmentId !== userDeptId) {
         return NextResponse.json(
           {
             success: false,
-            error: "অ্যাক্সেস ডিনাইড: ইউনিয়ন পর্যবেক্ষক অ্যাকাউন্টে ডাটা আপলোড করার অনুমতি নেই (Access Denied: UNION_VIEWER cannot upload data).",
+            error: "অননুমোদিত দপ্তর! দপ্তর কর্মকর্তা শুধুমাত্র তার নির্ধারিত দপ্তরের ডাটা আপলোড করতে পারবেন (Access Denied: You can only upload data for your assigned department).",
           },
           { status: 403 }
         );
-      }
-
-      // 2. DEPT_OFFICER can ONLY upload data for their assigned department
-      if (role === "DEPT_OFFICER" || role === "DEPARTMENT_OFFICER") {
-        const userDeptId = session.user.departmentId;
-        if (userDeptId && departmentId !== userDeptId) {
-          return NextResponse.json(
-            {
-              success: false,
-              error: "অননুমোদিত দপ্তর! দপ্তর কর্মকর্তা শুধুমাত্র তার নির্ধারিত দপ্তরের ডাটা আপলোড করতে পারবেন (Access Denied: You can only upload data for your assigned department).",
-            },
-            { status: 403 }
-          );
-        }
       }
     }
 

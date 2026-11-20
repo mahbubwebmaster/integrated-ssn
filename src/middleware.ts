@@ -7,11 +7,12 @@ export const config = {
   matcher: [
     /*
      * Match all request paths except:
-     * - api/auth (NextAuth endpoints)
+     * - api/auth NextAuth endpoints (callback, signin, signout, session, csrf, providers)
+     * - api/health
      * - _next/static (static files)
      * - _next/image (image optimization files)
      * - favicon.ico, public assets
      */
-    "/((?!api/auth|api/health|_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|xlsx|csv)$).*)",
+    "/((?!api/auth/(?:callback|signin|signout|session|csrf|providers)|api/health|_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|xlsx|csv)$).*)",
   ],
 };

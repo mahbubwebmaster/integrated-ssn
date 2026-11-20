@@ -22,30 +22,32 @@ async function resolveUser(request: Request, bodyUserId?: string) {
     if (user) return user;
   }
 
-  // Fallback to headers or explicit parameter (e.g. during testing/impersonation)
-  const headerUserId =
-    request.headers.get("x-user-id") ||
-    bodyUserId ||
-    new URL(request.url).searchParams.get("userId");
+  // Fallback to headers or explicit parameter strictly in development/test mode
+  if (process.env.NODE_ENV !== "production") {
+    const headerUserId =
+      request.headers.get("x-user-id") ||
+      bodyUserId ||
+      new URL(request.url).searchParams.get("userId");
 
-  if (headerUserId) {
-    const user = await prisma.user.findUnique({
-      where: { id: headerUserId },
-      include: { department: true },
-    });
-    if (user) return user;
-  }
+    if (headerUserId) {
+      const user = await prisma.user.findUnique({
+        where: { id: headerUserId },
+        include: { department: true },
+      });
+      if (user) return user;
+    }
 
-  const headerEmail =
-    request.headers.get("x-user-email") ||
-    new URL(request.url).searchParams.get("userEmail");
+    const headerEmail =
+      request.headers.get("x-user-email") ||
+      new URL(request.url).searchParams.get("userEmail");
 
-  if (headerEmail) {
-    const user = await prisma.user.findUnique({
-      where: { email: headerEmail.toLowerCase().trim() },
-      include: { department: true },
-    });
-    if (user) return user;
+    if (headerEmail) {
+      const user = await prisma.user.findUnique({
+        where: { email: headerEmail.toLowerCase().trim() },
+        include: { department: true },
+      });
+      if (user) return user;
+    }
   }
 
   return null;

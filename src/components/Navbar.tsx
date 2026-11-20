@@ -211,7 +211,13 @@ export function Navbar() {
               {/* Sign Out Button */}
               <button
                 type="button"
-                onClick={() => signOut({ callbackUrl: "/login" })}
+                onClick={() => {
+                  if (typeof window !== "undefined") {
+                    localStorage.removeItem("ssnp_cached_user");
+                    localStorage.removeItem("ssnp_active_user_id");
+                  }
+                  signOut({ callbackUrl: "/login" });
+                }}
                 className="flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-semibold bg-red-950/70 hover:bg-red-900/90 text-red-200 border border-red-800/60 transition-all shadow-xs"
                 title={t.common.signOut}
               >

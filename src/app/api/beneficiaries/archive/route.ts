@@ -1,17 +1,31 @@
 import { NextResponse } from "next/server";
+import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 
 export async function POST(request: Request) {
   try {
+    const session = await auth();
+    if (!session?.user) {
+      return NextResponse.json(
+        { success: false, error: "অননুমোদিত অ্যাক্সেস। অনুগ্রহ করে লগইন করুন (Unauthorized)" },
+        { status: 401 }
+      );
+    }
+
+    const requesterRole = session.user.role;
+    if (requesterRole === "UNION_VIEWER") {
+      return NextResponse.json(
+        { success: false, error: "অ্যাক্সেস ডিনাইড: ইউনিয়ন পর্যবেক্ষক অ্যাকাউন্টে আর্কাইভ করার অনুমতি নেই (Forbidden)" },
+        { status: 403 }
+      );
+    }
+
     const body = await request.json();
     const {
       beneficiaryId,
       enrollmentId,
       reason,
       note,
-      userEmail,
-      userName,
-      userRole,
     } = body;
 
     if (!beneficiaryId || !reason || !note?.trim()) {
@@ -40,7 +54,21 @@ export async function POST(request: Request) {
       );
     }
 
-    const archiverLabel = userName || userEmail || "দপ্তর কর্মকর্তা";
+    // Role check: If DEPT_OFFICER, ensure they only archive enrollments within their assigned department
+    if (requesterRole === "DEPT_OFFICER" || requesterRole === "DEPARTMENT_OFFICER") {
+      const userDeptId = session.user.departmentId;
+      if (enrollmentId) {
+        const targetEnrollment = beneficiary.enrollments.find((e) => e.id === enrollmentId);
+        if (targetEnrollment && userDeptId && targetEnrollment.scheme.departmentId !== userDeptId) {
+          return NextResponse.json(
+            { success: false, error: "অননুমোদিত দপ্তর: আপনি শুধুমাত্র নিজ দপ্তরের ভাতা আর্কাইভ করতে পারবেন।" },
+            { status: 403 }
+          );
+        }
+      }
+    }
+
+    const archiverLabel = session.user.name || session.user.email || "দপ্তর কর্মকর্তা";
     const now = new Date();
 
     // 1. If an enrollmentId is targeted (e.g. Dept Officer archiving their specific scheme)
@@ -104,20 +132,17 @@ export async function POST(request: Request) {
       });
     }
 
-    // Try audit log if user exists
+    // Record in audit log
     try {
-      if (userEmail) {
-        const u = await prisma.user.findUnique({ where: { email: userEmail } });
-        if (u) {
-          await prisma.auditLog.create({
-            data: {
-              userId: u.id,
-              actionType: "BENEFICIARY_ARCHIVED",
-              entityId: beneficiaryId,
-              details: `সুবিধাভোগী "${beneficiary.fullName}" (${reason}) আর্কাইভ করা হয়েছে। নোট: ${note.trim()}`,
-            },
-          });
-        }
+      if (session?.user?.id) {
+        await prisma.auditLog.create({
+          data: {
+            userId: session.user.id,
+            actionType: "BENEFICIARY_ARCHIVED",
+            entityId: beneficiaryId,
+            details: `সুবিধাভোগী "${beneficiary.fullName}" (${reason}) আর্কাইভ করা হয়েছে। নোট: ${note.trim()}`,
+          },
+        });
       }
     } catch (auditErr) {
       console.warn("Audit log creation warning:", auditErr);

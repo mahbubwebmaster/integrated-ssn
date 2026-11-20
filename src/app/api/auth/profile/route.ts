@@ -1,14 +1,29 @@
 import { NextResponse } from "next/server";
+import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { hashPassword, verifyPassword } from "@/lib/password";
 
 export async function GET(request: Request) {
   try {
+    const session = await auth();
+    if (!session?.user) {
+      return NextResponse.json({ success: false, error: "অননুমোদিত অ্যাক্সেস। অনুগ্রহ করে লগইন করুন (Unauthorized)" }, { status: 401 });
+    }
+
     const { searchParams } = new URL(request.url);
-    const userId = searchParams.get("userId");
+    const userId = searchParams.get("userId") || session.user.id;
 
     if (!userId) {
       return NextResponse.json({ success: false, error: "User ID is required." }, { status: 400 });
+    }
+
+    // Authorization check: User can view their own profile, or admins can view other profiles
+    const requesterRole = session.user.role;
+    const isSelf = session.user.id === userId;
+    const isAdmin = requesterRole === "SUPER_ADMIN" || requesterRole === "DISTRICT_ADMIN" || requesterRole === "UPAZILA_ADMIN";
+
+    if (!isSelf && !isAdmin) {
+      return NextResponse.json({ success: false, error: "অ্যাক্সেস ডিনাইড: অন্য ব্যবহারকারীর প্রোফাইল দেখার অনুমতি নেই (Forbidden)" }, { status: 403 });
     }
 
     const user = await prisma.user.findUnique({
@@ -51,6 +66,11 @@ export async function GET(request: Request) {
 
 export async function PATCH(request: Request) {
   try {
+    const session = await auth();
+    if (!session?.user) {
+      return NextResponse.json({ success: false, error: "অননুমোদিত অ্যাক্সেস। অনুগ্রহ করে লগইন করুন (Unauthorized)" }, { status: 401 });
+    }
+
     const body = await request.json();
     const { userId, action } = body;
 
@@ -58,6 +78,17 @@ export async function PATCH(request: Request) {
       return NextResponse.json(
         { success: false, error: "userId and action are required." },
         { status: 400 }
+      );
+    }
+
+    // IDOR Protection: User can only update their own profile, or SUPER_ADMIN can perform administrative changes
+    const isSelf = session.user.id === userId;
+    const isSuperAdmin = session.user.role === "SUPER_ADMIN";
+
+    if (!isSelf && !isSuperAdmin) {
+      return NextResponse.json(
+        { success: false, error: "অ্যাক্সেস ডিনাইড: অন্য ব্যবহারকারীর প্রোফাইল বা পাসওয়ার্ড পরিবর্তন করার এখতিয়ার নেই (Forbidden)" },
+        { status: 403 }
       );
     }
 
@@ -200,11 +231,10 @@ export async function PATCH(request: Request) {
         );
       }
 
-      // Verify current password against stored hash (or fallback default admin123)
+      // Verify current password against stored hash (or legacy plain password if present)
       const isMatch =
         verifyPassword(currentPassword, user.passwordHash) ||
-        currentPassword === user.password ||
-        currentPassword === "admin123";
+        Boolean(user.password && currentPassword === user.password);
 
       if (!isMatch) {
         return NextResponse.json(

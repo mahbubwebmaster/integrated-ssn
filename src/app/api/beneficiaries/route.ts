@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { getSessionUser, getBeneficiaryScope } from "@/lib/data-scope";
 
@@ -349,6 +350,21 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
+    const session = await auth();
+    if (!session?.user) {
+      return NextResponse.json(
+        { success: false, error: "অননুমোদিত অ্যাক্সেস। অনুগ্রহ করে লগইন করুন (Unauthorized)" },
+        { status: 401 }
+      );
+    }
+
+    if (session.user.role === "UNION_VIEWER") {
+      return NextResponse.json(
+        { success: false, error: "অ্যাক্সেস ডিনাইড: ইউনিয়ন পর্যবেক্ষক অ্যাকাউন্টে নতুন সুবিধাভোগী যোগ করার অনুমতি নেই (Forbidden)" },
+        { status: 403 }
+      );
+    }
+
     const body = await request.json();
     const {
       nameBn,
@@ -468,6 +484,21 @@ export async function POST(request: Request) {
 
 export async function PATCH(request: Request) {
   try {
+    const session = await auth();
+    if (!session?.user) {
+      return NextResponse.json(
+        { success: false, error: "অননুমোদিত অ্যাক্সেস। অনুগ্রহ করে লগইন করুন (Unauthorized)" },
+        { status: 401 }
+      );
+    }
+
+    if (session.user.role === "UNION_VIEWER") {
+      return NextResponse.json(
+        { success: false, error: "অ্যাক্সেস ডিনাইড: ইউনিয়ন পর্যবেক্ষক অ্যাকাউন্টে সুবিধাভোগীর তথ্য পরিবর্তনের অনুমতি নেই (Forbidden)" },
+        { status: 403 }
+      );
+    }
+
     const body = await request.json();
     const {
       id,

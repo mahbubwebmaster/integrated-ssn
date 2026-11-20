@@ -207,7 +207,18 @@ const AuthContext = createContext<AuthContextType>({
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const { data: session } = useSession();
-  const [currentUser, setCurrentUserState] = useState<UserSession>(DEFAULT_SUPER_ADMIN);
+  const [currentUser, setCurrentUserState] = useState<UserSession>(() => {
+    if (typeof window !== "undefined") {
+      try {
+        const cached = localStorage.getItem("ssnp_cached_user");
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          if (parsed && parsed.name) return parsed;
+        }
+      } catch {}
+    }
+    return DEFAULT_SUPER_ADMIN;
+  });
   const [allUsers, setAllUsers] = useState<UserSession[]>(DEFAULT_USERS);
   const [loading, setLoading] = useState(true);
 
@@ -218,7 +229,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const userRole = (u.role || "SUPER_ADMIN") as UserRole;
       const matched = allUsers.find((x) => x.email === u.email || x.id === u.id);
 
-      setCurrentUserState({
+      const newUser: UserSession = {
         id: u.id || matched?.id || "auth-user",
         name: u.name || matched?.name || "Official User",
         designation: (u as any).designation || matched?.designation || null,
@@ -237,7 +248,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         district: (u as any).district || matched?.district || "নেত্রকোণা",
         upazilaName: (u as any).upazilaName || matched?.upazilaName || null,
         unionName: u.unionName || matched?.unionName || null,
-      });
+      };
+
+      setCurrentUserState(newUser);
+      if (typeof window !== "undefined") {
+        try {
+          localStorage.setItem("ssnp_cached_user", JSON.stringify(newUser));
+        } catch {}
+      }
 
       // Also asynchronously fetch user profile to populate avatar/phone
       if (u.id) {
@@ -246,22 +264,30 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           .then((data) => {
             if (data?.success && data?.user) {
               const p = data.user;
-              setCurrentUserState((prev) => ({
-                ...prev,
-                name: p.name || prev.name,
-                designation: p.designation ?? prev.designation,
-                phone: p.phone ?? prev.phone,
-                phoneVerified: Boolean(p.phoneVerified),
-                image: p.image ?? prev.image,
-                isEmailVerified: Boolean(p.isEmailVerified),
-                departmentId: p.departmentId || prev.departmentId,
-                departmentName: p.departmentName || prev.departmentName,
-                departmentNameBn: p.departmentNameBn || prev.departmentNameBn,
-                departmentNameEn: p.departmentNameEn || prev.departmentNameEn,
-                district: p.district || prev.district || "নেত্রকোণা",
-                upazilaName: p.upazilaName !== undefined ? p.upazilaName : prev.upazilaName,
-                unionName: p.unionName || prev.unionName,
-              }));
+              setCurrentUserState((prev) => {
+                const updated: UserSession = {
+                  ...prev,
+                  name: p.name || prev.name,
+                  designation: p.designation ?? prev.designation,
+                  phone: p.phone ?? prev.phone,
+                  phoneVerified: Boolean(p.phoneVerified),
+                  image: p.image ?? prev.image,
+                  isEmailVerified: Boolean(p.isEmailVerified),
+                  departmentId: p.departmentId || prev.departmentId,
+                  departmentName: p.departmentName || prev.departmentName,
+                  departmentNameBn: p.departmentNameBn || prev.departmentNameBn,
+                  departmentNameEn: p.departmentNameEn || prev.departmentNameEn,
+                  district: p.district || prev.district || "নেত্রকোণা",
+                  upazilaName: p.upazilaName !== undefined ? p.upazilaName : prev.upazilaName,
+                  unionName: p.unionName || prev.unionName,
+                };
+                if (typeof window !== "undefined") {
+                  try {
+                    localStorage.setItem("ssnp_cached_user", JSON.stringify(updated));
+                  } catch {}
+                }
+                return updated;
+              });
             }
           })
           .catch(() => { });
@@ -349,6 +375,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const setCurrentUser = (user: UserSession) => {
     setCurrentUserState(user);
     if (typeof window !== "undefined") {
+      try {
+        localStorage.setItem("ssnp_cached_user", JSON.stringify(user));
+      } catch {}
       localStorage.setItem("ssnp_active_user_id", user.id);
       document.cookie = `ssn_user_role=${user.role}; path=/`;
       if (user.departmentId) {

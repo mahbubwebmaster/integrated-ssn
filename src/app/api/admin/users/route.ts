@@ -16,16 +16,19 @@ async function resolveAdminUser(request: Request) {
     if (user) return user;
   }
 
-  const headerUserId = request.headers.get("x-user-id");
-  if (headerUserId) {
-    const user = await prisma.user.findUnique({ where: { id: headerUserId } });
-    if (user) return user;
-  }
+  // Allow header fallback strictly during non-production testing
+  if (process.env.NODE_ENV !== "production") {
+    const headerUserId = request.headers.get("x-user-id");
+    if (headerUserId) {
+      const user = await prisma.user.findUnique({ where: { id: headerUserId } });
+      if (user) return user;
+    }
 
-  const headerEmail = request.headers.get("x-user-email");
-  if (headerEmail) {
-    const user = await prisma.user.findUnique({ where: { email: headerEmail.toLowerCase().trim() } });
-    if (user) return user;
+    const headerEmail = request.headers.get("x-user-email");
+    if (headerEmail) {
+      const user = await prisma.user.findUnique({ where: { email: headerEmail.toLowerCase().trim() } });
+      if (user) return user;
+    }
   }
 
   return null;

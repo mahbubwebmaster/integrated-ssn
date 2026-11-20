@@ -9,11 +9,16 @@ export const authConfig = {
     authorized({ auth, request: { nextUrl } }) {
       const isLoggedIn = !!auth?.user;
       const isLoginPage = nextUrl.pathname === "/login";
-      const isAuthApi =
-        nextUrl.pathname.startsWith("/api/auth") ||
+      const isNextAuthPublic =
+        nextUrl.pathname.startsWith("/api/auth/callback") ||
+        nextUrl.pathname.startsWith("/api/auth/signin") ||
+        nextUrl.pathname.startsWith("/api/auth/signout") ||
+        nextUrl.pathname.startsWith("/api/auth/session") ||
+        nextUrl.pathname.startsWith("/api/auth/csrf") ||
+        nextUrl.pathname.startsWith("/api/auth/providers") ||
         nextUrl.pathname.startsWith("/api/health");
 
-      if (isAuthApi) {
+      if (isNextAuthPublic) {
         return true;
       }
 

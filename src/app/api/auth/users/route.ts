@@ -1,10 +1,16 @@
 import { NextResponse } from "next/server";
+import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { ensureDefaultMasterData } from "@/lib/seed";
 import { hashPassword } from "@/lib/password";
 
 export async function GET() {
   try {
+    const session = await auth();
+    if (!session?.user) {
+      return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
+    }
+
     await ensureDefaultMasterData();
 
     const users = await prisma.user.findMany({
@@ -41,6 +47,18 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
+    const session = await auth();
+    if (!session?.user) {
+      return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
+    }
+
+    if (session.user.role !== "SUPER_ADMIN") {
+      return NextResponse.json(
+        { success: false, error: "অননুমোদিত: শুধুমাত্র সুপার অ্যাডমিন ইউজার তৈরি করতে পারেন (Forbidden: Super Admin only)" },
+        { status: 403 }
+      );
+    }
+
     const body = await request.json();
     const { name, designation, email, role, departmentId, district, upazilaName, unionName, wardNo, password, isActive } = body;
 

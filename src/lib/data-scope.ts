@@ -39,8 +39,8 @@ export async function getSessionUser(request?: Request): Promise<UserScopeIdenti
     console.warn("getSessionUser: NextAuth session check skipped or failed:", e);
   }
 
-  // Fallback to custom request headers if set (e.g. during client/proxy fetch)
-  if (request) {
+  // Fallback to custom request headers strictly during non-production testing
+  if (request && process.env.NODE_ENV !== "production") {
     const role = request.headers.get("x-user-role");
     if (role) {
       return {

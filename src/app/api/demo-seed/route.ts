@@ -1,9 +1,17 @@
 import { NextResponse } from "next/server";
+import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { ensureDefaultMasterData } from "@/lib/seed";
 
 export async function POST() {
   try {
+    const session = await auth();
+    if (!session?.user || session.user.role !== "SUPER_ADMIN") {
+      return NextResponse.json(
+        { success: false, error: "অননুমোদিত: শুধুমাত্র সিস্টেম সুপার এডমিন ডেমো সিড করতে পারেন (Forbidden: Super Admin only)" },
+        { status: 403 }
+      );
+    }
     await ensureDefaultMasterData();
 
     const depts = await prisma.department.findMany({
