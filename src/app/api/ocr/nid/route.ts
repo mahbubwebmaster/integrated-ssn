@@ -110,14 +110,26 @@ Return ONLY valid JSON matching this structure without Markdown formatting or ex
 }
 If any field cannot be found or is unclear, return empty string "" for that field.`;
 
-    const modelsToTry = ["gemini-2.0-flash", "gemini-1.5-flash", "gemini-1.5-pro"];
+    const modelsToTry = [
+      "gemini-2.5-flash",
+      "gemini-2.0-flash",
+      "gemini-1.5-flash",
+      "gemini-1.5-flash-latest",
+      "gemini-2.5-pro",
+    ];
     let rawText = "";
-    let lastError = "";
+    const errors: string[] = [];
+
+    const safeMimeType =
+      mimeType === "image/jpg"
+        ? "image/jpeg"
+        : mimeType || "image/jpeg";
 
     for (const model of modelsToTry) {
       try {
+        console.log(`[OCR] Trying model: ${model}`);
         const response = await fetch(
-          `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
+          `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey.trim()}`,
           {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -127,8 +139,8 @@ If any field cannot be found or is unclear, return empty string "" for that fiel
                   parts: [
                     { text: prompt },
                     {
-                      inline_data: {
-                        mime_type: mimeType,
+                      inlineData: {
+                        mimeType: safeMimeType,
                         data: base64Data,
                       },
                     },
@@ -137,7 +149,6 @@ If any field cannot be found or is unclear, return empty string "" for that fiel
               ],
               generationConfig: {
                 temperature: 0.1,
-                response_mime_type: "application/json",
               },
             }),
           }
@@ -145,7 +156,8 @@ If any field cannot be found or is unclear, return empty string "" for that fiel
 
         if (!response.ok) {
           const errBody = await response.text();
-          lastError = `Model ${model} returned ${response.status}: ${errBody}`;
+          console.error(`[OCR] Model ${model} failed (${response.status}):`, errBody);
+          errors.push(`${model} (${response.status}): ${errBody}`);
           continue;
         }
 
@@ -154,23 +166,48 @@ If any field cannot be found or is unclear, return empty string "" for that fiel
           resData.candidates?.[0]?.content?.parts?.[0]?.text || "";
         if (candidateText) {
           rawText = candidateText;
+          console.log(`[OCR] Successfully generated content using ${model}`);
           break;
         }
       } catch (callErr: any) {
-        lastError = callErr?.message || String(callErr);
+        const msg = callErr?.message || String(callErr);
+        console.error(`[OCR] Model ${model} exception:`, msg);
+        errors.push(`${model} exception: ${msg}`);
       }
     }
 
     if (!rawText) {
-      throw new Error(lastError || "Gemini API থেকে কোনো ফলাফল পাওয়া যায়নি।");
+      const isKeyInvalid = errors.some(
+        (e) => e.includes("API_KEY_INVALID") || e.includes("API key not valid")
+      );
+      const isQuota = errors.some(
+        (e) => e.includes("RESOURCE_EXHAUSTED") || e.includes("quota")
+      );
+
+      let friendlyError = "Gemini API থেকে এনআইডি তথ্য এক্সট্রাক্ট করা যায়নি।";
+      if (isKeyInvalid) {
+        friendlyError =
+          "প্রদত্ত Gemini API Key-টি সঠিক নয় (Invalid API Key)। অনুগ্রহ করে Google AI Studio থেকে নতুন কী কপি করে প্রদান করুন।";
+      } else if (isQuota) {
+        friendlyError =
+          "আপনার Gemini API-এর অনুরোধের সীমা অতিক্রান্ত হয়েছে (Quota Exceeded)। অনুগ্রহ করে কিছুক্ষণ পর চেষ্টা করুন।";
+      } else if (errors.length > 0) {
+        friendlyError = errors[0];
+      }
+      throw new Error(friendlyError);
     }
 
-    // Clean up response if wrapped in markdown code blocks
+    // Clean up response: find JSON object enclosed in { ... }
     let cleaned = rawText.trim();
-    if (cleaned.startsWith("```json")) {
-      cleaned = cleaned.replace(/^```json\s*/, "").replace(/\s*```$/, "");
-    } else if (cleaned.startsWith("```")) {
-      cleaned = cleaned.replace(/^```\s*/, "").replace(/\s*```$/, "");
+    const jsonMatch = cleaned.match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
+      cleaned = jsonMatch[0];
+    } else {
+      if (cleaned.startsWith("```json")) {
+        cleaned = cleaned.replace(/^```json\s*/, "").replace(/\s*```$/, "");
+      } else if (cleaned.startsWith("```")) {
+        cleaned = cleaned.replace(/^```\s*/, "").replace(/\s*```$/, "");
+      }
     }
 
     const parsed = JSON.parse(cleaned);
