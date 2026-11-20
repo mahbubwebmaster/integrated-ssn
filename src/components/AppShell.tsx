@@ -35,7 +35,7 @@ interface AppShellProps {
 
 export function AppShell({ children }: AppShellProps) {
   const pathname = usePathname();
-  const { currentUser, permissions } = useAuth();
+  const { currentUser, permissions, loading } = useAuth();
   const { language, setLanguage, t } = useLanguage();
 
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -281,34 +281,44 @@ export function AppShell({ children }: AppShellProps) {
           </div>
 
           {/* User Profile Summary Button */}
-          <button
-            type="button"
-            onClick={() => setProfileModalOpen(true)}
-            className="w-full flex items-center gap-2.5 p-2 rounded-xl bg-slate-900/90 hover:bg-slate-800/90 border border-slate-800 text-left transition-all group"
-            title={language === "bn" ? "প্রোফাইল ও পাসওয়ার্ড পরিবর্তন" : "Profile & Security Settings"}
-          >
-            {currentUser.image ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={currentUser.image}
-                alt={currentUser.name}
-                className="w-8 h-8 rounded-full object-cover border border-emerald-400 shrink-0"
-              />
-            ) : (
-              <div className="w-8 h-8 rounded-full bg-emerald-900/80 border border-emerald-600/50 flex items-center justify-center text-emerald-300 shrink-0">
-                <User className="w-4 h-4" />
-              </div>
-            )}
-            <div className="flex-1 min-w-0">
-              <div className="text-xs font-bold text-white truncate group-hover:text-emerald-300 transition-colors">
-                {currentUser.name}
-              </div>
-              <div className="text-[10px] text-emerald-400 font-medium truncate">
-                {currentRoleTitle}
+          {loading || !currentUser.name ? (
+            <div className="w-full flex items-center gap-2.5 p-2 rounded-xl bg-slate-900/90 border border-slate-800 animate-pulse">
+              <div className="w-8 h-8 rounded-full bg-slate-800 shrink-0" />
+              <div className="flex-1 space-y-1.5 py-1">
+                <div className="h-2.5 bg-slate-700 rounded w-24" />
+                <div className="h-2 bg-slate-800 rounded w-16" />
               </div>
             </div>
-            <ChevronRight className="w-3.5 h-3.5 text-slate-500 group-hover:text-slate-300 shrink-0" />
-          </button>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setProfileModalOpen(true)}
+              className="w-full flex items-center gap-2.5 p-2 rounded-xl bg-slate-900/90 hover:bg-slate-800/90 border border-slate-800 text-left transition-all group"
+              title={language === "bn" ? "প্রোফাইল ও পাসওয়ার্ড পরিবর্তন" : "Profile & Security Settings"}
+            >
+              {currentUser.image ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={currentUser.image}
+                  alt={currentUser.name}
+                  className="w-8 h-8 rounded-full object-cover border border-emerald-400 shrink-0"
+                />
+              ) : (
+                <div className="w-8 h-8 rounded-full bg-emerald-900/80 border border-emerald-600/50 flex items-center justify-center text-emerald-300 shrink-0">
+                  <User className="w-4 h-4" />
+                </div>
+              )}
+              <div className="flex-1 min-w-0">
+                <div className="text-xs font-bold text-white truncate group-hover:text-emerald-300 transition-colors">
+                  {currentUser.name}
+                </div>
+                <div className="text-[10px] text-emerald-400 font-medium truncate">
+                  {currentRoleTitle}
+                </div>
+              </div>
+              <ChevronRight className="w-3.5 h-3.5 text-slate-500 group-hover:text-slate-300 shrink-0" />
+            </button>
+          )}
 
           {/* Sign Out Button */}
           <button
@@ -466,31 +476,41 @@ export function AppShell({ children }: AppShellProps) {
 
             {/* Officer Information Card in Drawer */}
             <div className="p-4 border-b border-slate-800 bg-slate-950/40">
-              <div className="flex items-center gap-3">
-                {currentUser.image ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={currentUser.image}
-                    alt={currentUser.name}
-                    className="w-10 h-10 rounded-full object-cover border-2 border-emerald-400 shrink-0"
-                  />
-                ) : (
-                  <div className="w-10 h-10 rounded-full bg-emerald-900 border-2 border-emerald-500/50 flex items-center justify-center text-emerald-300 shrink-0">
-                    <User className="w-5 h-5" />
-                  </div>
-                )}
-                <div className="min-w-0">
-                  <div className="font-bold text-xs text-white truncate">
-                    {currentUser.name}
-                  </div>
-                  <div className="text-[11px] text-slate-400 truncate">
-                    {currentUser.designation || currentRoleTitle}
-                  </div>
-                  <div className="inline-block mt-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-950 text-emerald-300 border border-emerald-600/40">
-                    {currentRoleTitle} {currentUser.upazilaName ? `• ${currentUser.upazilaName}` : ""}
+              {loading || !currentUser.name ? (
+                <div className="flex items-center gap-3 animate-pulse">
+                  <div className="w-10 h-10 rounded-full bg-slate-800 shrink-0" />
+                  <div className="space-y-1.5 flex-1">
+                    <div className="h-3 bg-slate-700 rounded w-28" />
+                    <div className="h-2.5 bg-slate-800 rounded w-20" />
                   </div>
                 </div>
-              </div>
+              ) : (
+                <div className="flex items-center gap-3">
+                  {currentUser.image ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={currentUser.image}
+                      alt={currentUser.name}
+                      className="w-10 h-10 rounded-full object-cover border-2 border-emerald-400 shrink-0"
+                    />
+                  ) : (
+                    <div className="w-10 h-10 rounded-full bg-emerald-900 border-2 border-emerald-500/50 flex items-center justify-center text-emerald-300 shrink-0">
+                      <User className="w-5 h-5" />
+                    </div>
+                  )}
+                  <div className="min-w-0">
+                    <div className="font-bold text-xs text-white truncate">
+                      {currentUser.name}
+                    </div>
+                    <div className="text-[11px] text-slate-400 truncate">
+                      {currentUser.designation || currentRoleTitle}
+                    </div>
+                    <div className="inline-block mt-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-950 text-emerald-300 border border-emerald-600/40">
+                      {currentRoleTitle} {currentUser.upazilaName ? `• ${currentUser.upazilaName}` : ""}
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Drawer Navigation Links */}

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import {
   User,
   Camera,
@@ -65,6 +65,17 @@ export function UserProfileModal({ isOpen, onClose }: UserProfileModalProps) {
   // Feedback Notifications
   const [successNotice, setSuccessNotice] = useState<string | null>(null);
   const [errorNotice, setErrorNotice] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (isOpen) {
+      setName(currentUser.name || "");
+      setDesignation(currentUser.designation || "");
+      setPhotoDataUrl(currentUser.image || null);
+      setPhone(currentUser.phone || "");
+      setPhoneVerified(Boolean(currentUser.phoneVerified));
+      setEmailVerified(Boolean(currentUser.isEmailVerified));
+    }
+  }, [isOpen, currentUser]);
 
   if (!isOpen) return null;
 

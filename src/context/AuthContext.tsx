@@ -20,18 +20,18 @@ interface AuthContextType {
   loading: boolean;
 }
 
-const DEFAULT_DC: UserSession = {
-  id: "default-dc",
-  name: "বনানী বিশ্বাস",
-  designation: "জেলা প্রশাসক ও জেলা ম্যাজিস্ট্রেট, নেত্রকোণা",
-  email: "dc@netrokona.gov.bd",
+const EMPTY_USER: UserSession = {
+  id: "",
+  name: "",
+  designation: null,
+  email: "",
   role: "SUPER_ADMIN",
-  roleTitleBn: ROLE_CONFIG.SUPER_ADMIN.nameBn,
-  roleTitleEn: ROLE_CONFIG.SUPER_ADMIN.nameEn,
-  phone: "01713000001",
-  phoneVerified: true,
+  roleTitleBn: "",
+  roleTitleEn: "",
+  phone: null,
+  phoneVerified: false,
   image: null,
-  isEmailVerified: true,
+  isEmailVerified: false,
   district: "নেত্রকোণা",
   upazilaName: null,
   departmentId: null,
@@ -41,156 +41,13 @@ const DEFAULT_DC: UserSession = {
   unionName: null,
 };
 
-const DEFAULT_UPAZILA_ADMIN: UserSession = {
-  id: "default-uno-sadar",
-  name: "তানিয়া আক্তার",
-  designation: "উপজেলা নির্বাহী অফিসার, নেত্রকোণা সদর",
-  email: "uno.sadar@netrokona.gov.bd",
-  role: "UPAZILA_ADMIN",
-  roleTitleBn: ROLE_CONFIG.UPAZILA_ADMIN.nameBn,
-  roleTitleEn: ROLE_CONFIG.UPAZILA_ADMIN.nameEn,
-  phone: "01711000011",
-  phoneVerified: true,
-  image: null,
-  isEmailVerified: true,
-  district: "নেত্রকোণা",
-  upazilaName: "নেত্রকোণা সদর",
-  departmentId: null,
-  departmentName: null,
-  departmentNameBn: null,
-  departmentNameEn: null,
-  unionName: null,
-};
+const DEFAULT_SUPER_ADMIN: UserSession = EMPTY_USER;
+const DEFAULT_UPAZILA_ADMIN: UserSession = EMPTY_USER;
 
-const DEFAULT_SUPER_ADMIN: UserSession = DEFAULT_DC;
-
-const DEFAULT_USERS: UserSession[] = [
-  DEFAULT_DC,
-  DEFAULT_UPAZILA_ADMIN,
-  {
-    id: "default-uno-kendua",
-    name: "মো: ইমদাদুল হক তালুকদার",
-    designation: "উপজেলা নির্বাহী অফিসার, কেন্দুয়া",
-    email: "uno.kendua@netrokona.gov.bd",
-    role: "UPAZILA_ADMIN",
-    roleTitleBn: ROLE_CONFIG.UPAZILA_ADMIN.nameBn,
-    roleTitleEn: ROLE_CONFIG.UPAZILA_ADMIN.nameEn,
-    phone: "01711000012",
-    phoneVerified: true,
-    image: null,
-    isEmailVerified: true,
-    district: "নেত্রকোণা",
-    upazilaName: "কেন্দুয়া",
-    departmentId: null,
-    departmentName: null,
-    departmentNameBn: null,
-    departmentNameEn: null,
-    unionName: null,
-  },
-  {
-    id: "default-uno-durgapur",
-    name: "নাভীদ রেজওয়ানুল কবীর",
-    designation: "উপজেলা নির্বাহী অফিসার, দুর্গাপুর",
-    email: "uno.durgapur@netrokona.gov.bd",
-    role: "UPAZILA_ADMIN",
-    roleTitleBn: ROLE_CONFIG.UPAZILA_ADMIN.nameBn,
-    roleTitleEn: ROLE_CONFIG.UPAZILA_ADMIN.nameEn,
-    phone: "01711000013",
-    phoneVerified: true,
-    image: null,
-    isEmailVerified: true,
-    district: "নেত্রকোণা",
-    upazilaName: "দুর্গাপুর",
-    departmentId: null,
-    departmentName: null,
-    departmentNameBn: null,
-    departmentNameEn: null,
-    unionName: null,
-  },
-  {
-    id: "default-dss-sadar",
-    name: "উপজেলা সমাজসেবা কর্মকর্তা (নেত্রকোণা সদর)",
-    designation: "উপজেলা সমাজসেবা কর্মকর্তা",
-    email: "dss.sadar@netrokona.gov.bd",
-    role: "DEPT_OFFICER",
-    roleTitleBn: ROLE_CONFIG.DEPT_OFFICER.nameBn,
-    roleTitleEn: ROLE_CONFIG.DEPT_OFFICER.nameEn,
-    phone: "01712000001",
-    phoneVerified: true,
-    image: null,
-    isEmailVerified: true,
-    district: "নেত্রকোণা",
-    upazilaName: "নেত্রকোণা সদর",
-    departmentId: "cmwmbddpy0000sghgtn9qiu6e",
-    departmentName: "Department of Social Services",
-    departmentNameBn: "সমাজসেবা অধিদপ্তর",
-    departmentNameEn: "Department of Social Services",
-    unionName: null,
-  },
-  {
-    id: "default-dwa-sadar",
-    name: "উপজেলা মহিলা বিষয়ক কর্মকর্তা (নেত্রকোণা সদর)",
-    designation: "উপজেলা মহিলা বিষয়ক কর্মকর্তা",
-    email: "dwa.sadar@netrokona.gov.bd",
-    role: "DEPT_OFFICER",
-    roleTitleBn: ROLE_CONFIG.DEPT_OFFICER.nameBn,
-    roleTitleEn: ROLE_CONFIG.DEPT_OFFICER.nameEn,
-    phone: "01713000002",
-    phoneVerified: true,
-    image: null,
-    isEmailVerified: true,
-    district: "নেত্রকোণা",
-    upazilaName: "নেত্রকোণা সদর",
-    departmentId: "cmwmbddrd0004sghg7sc62y1x",
-    departmentName: "Department of Women Affairs",
-    departmentNameBn: "মহিলা বিষয়ক অধিদপ্তর",
-    departmentNameEn: "Department of Women Affairs",
-    unionName: null,
-  },
-  {
-    id: "default-dss-kendua",
-    name: "উপজেলা সমাজসেবা কর্মকর্তা (কেন্দুয়া)",
-    designation: "উপজেলা সমাজসেবা কর্মকর্তা",
-    email: "dss.kendua@netrokona.gov.bd",
-    role: "DEPT_OFFICER",
-    roleTitleBn: ROLE_CONFIG.DEPT_OFFICER.nameBn,
-    roleTitleEn: ROLE_CONFIG.DEPT_OFFICER.nameEn,
-    phone: "01712000003",
-    phoneVerified: true,
-    image: null,
-    isEmailVerified: true,
-    district: "নেত্রকোণা",
-    upazilaName: "কেন্দুয়া",
-    departmentId: "cmwmbddpy0000sghgtn9qiu6e",
-    departmentName: "Department of Social Services",
-    departmentNameBn: "সমাজসেবা অধিদপ্তর",
-    departmentNameEn: "Department of Social Services",
-    unionName: null,
-  },
-  {
-    id: "default-mougati",
-    name: "মো: কামরুল হাসান",
-    designation: "ইউপি সচিব",
-    email: "mougati.sadar@netrokona.gov.bd",
-    role: "UNION_VIEWER",
-    roleTitleBn: ROLE_CONFIG.UNION_VIEWER.nameBn,
-    roleTitleEn: ROLE_CONFIG.UNION_VIEWER.nameEn,
-    phone: "01714000004",
-    phoneVerified: false,
-    image: null,
-    isEmailVerified: false,
-    district: "নেত্রকোণা",
-    upazilaName: "নেত্রকোণা সদর",
-    departmentId: null,
-    departmentName: null,
-    departmentNameBn: null,
-    departmentNameEn: null,
-    unionName: "মৌগাতি",
-  },
-];
+const DEFAULT_USERS: UserSession[] = [];
 
 const AuthContext = createContext<AuthContextType>({
-  currentUser: DEFAULT_UPAZILA_ADMIN,
+  currentUser: EMPTY_USER,
   allUsers: DEFAULT_USERS,
   setCurrentUser: () => { },
   updateUserProfile: () => { },
@@ -199,10 +56,10 @@ const AuthContext = createContext<AuthContextType>({
   roleConfig: ROLE_CONFIG.UPAZILA_ADMIN,
   isSuperAdmin: false,
   isDistrictAdmin: false,
-  isUpazilaAdmin: true,
+  isUpazilaAdmin: false,
   isDeptOfficer: false,
   isUnionViewer: false,
-  loading: false,
+  loading: true,
 });
 
 function buildSessionUser(u: any): UserSession {
@@ -215,41 +72,35 @@ function buildSessionUser(u: any): UserSession {
     role: userRole,
     roleTitleBn: ROLE_CONFIG[userRole]?.nameBn || userRole,
     roleTitleEn: ROLE_CONFIG[userRole]?.nameEn || userRole,
-    phone: u.phone || null,
-    phoneVerified: Boolean(u.phoneVerified),
+    phone: (u as any).phone || null,
+    phoneVerified: Boolean((u as any).phoneVerified),
     image: u.image || null,
-    isEmailVerified: Boolean(u.isEmailVerified),
+    isEmailVerified: Boolean((u as any).isEmailVerified),
     departmentId: u.departmentId || null,
     departmentName: u.departmentName || null,
-    departmentNameBn: u.departmentNameBn || null,
-    departmentNameEn: u.departmentNameEn || null,
-    district: u.district || u.districtName || "নেত্রকোণা",
-    upazilaName: u.upazilaName || null,
+    departmentNameBn: (u as any).departmentNameBn || null,
+    departmentNameEn: (u as any).departmentNameEn || null,
+    district: (u as any).district || (u as any).districtName || "নেত্রকোণা",
+    upazilaName: (u as any).upazilaName || null,
     unionName: u.unionName || null,
   };
 }
 
-export function AuthProvider({
-  children,
-  initialSession,
-}: {
-  children: React.ReactNode;
-  initialSession?: any;
-}) {
-  const { data: session } = useSession();
-  const [currentUser, setCurrentUserState] = useState<UserSession>(() => {
-    if (initialSession?.user) {
-      return buildSessionUser(initialSession.user);
-    }
-    return DEFAULT_SUPER_ADMIN;
-  });
+export function AuthProvider({ children }: { children: React.ReactNode }) {
+  const { data: session, status } = useSession();
+  const [currentUser, setCurrentUserState] = useState<UserSession>(EMPTY_USER);
   const [allUsers, setAllUsers] = useState<UserSession[]>(DEFAULT_USERS);
-  const [loading, setLoading] = useState(!initialSession?.user);
+  const [loading, setLoading] = useState(true);
 
-  // Synchronize with NextAuth session when available
+  // Synchronize strictly with real NextAuth session
   useEffect(() => {
-    const u = session?.user || initialSession?.user;
-    if (u) {
+    if (status === "loading") {
+      setLoading(true);
+      return;
+    }
+
+    if (session?.user) {
+      const u = session.user;
       const newUser = buildSessionUser(u);
       setCurrentUserState((prev) => ({
         ...prev,
@@ -284,8 +135,11 @@ export function AuthProvider({
           })
           .catch(() => { });
       }
+    } else {
+      setCurrentUserState(EMPTY_USER);
+      setLoading(false);
     }
-  }, [session, initialSession]);
+  }, [session, status]);
 
   // Load users safely without throwing unhandled network errors
   useEffect(() => {
@@ -328,28 +182,8 @@ export function AuthProvider({
         }));
 
         setAllUsers(mappedUsers);
-
-        // Check if previously saved user in localStorage
-        const savedUserId =
-          typeof window !== "undefined"
-            ? localStorage.getItem("ssnp_active_user_id")
-            : null;
-
-        if (savedUserId) {
-          const found = mappedUsers.find((u) => u.id === savedUserId);
-          if (found && !session?.user) {
-            setCurrentUserState(found);
-            return;
-          }
-        }
-
-        if (!session?.user) {
-          const adminUser =
-            mappedUsers.find((u) => u.role === "SUPER_ADMIN") || mappedUsers[0];
-          if (adminUser) setCurrentUserState(adminUser);
-        }
       } catch {
-        // Silently fallback to default personas
+        // Silently fallback
       } finally {
         if (isMounted) {
           setLoading(false);
@@ -409,11 +243,11 @@ export function AuthProvider({
         switchUserById,
         permissions,
         roleConfig,
-        isSuperAdmin: role === "SUPER_ADMIN",
-        isDistrictAdmin: role === "DISTRICT_ADMIN",
-        isUpazilaAdmin: role === "UPAZILA_ADMIN",
-        isDeptOfficer: role === "DEPT_OFFICER" || role === "DEPARTMENT_OFFICER",
-        isUnionViewer: role === "UNION_VIEWER",
+        isSuperAdmin: Boolean(currentUser.id && role === "SUPER_ADMIN"),
+        isDistrictAdmin: Boolean(currentUser.id && role === "DISTRICT_ADMIN"),
+        isUpazilaAdmin: Boolean(currentUser.id && role === "UPAZILA_ADMIN"),
+        isDeptOfficer: Boolean(currentUser.id && (role === "DEPT_OFFICER" || role === "DEPARTMENT_OFFICER")),
+        isUnionViewer: Boolean(currentUser.id && role === "UNION_VIEWER"),
         loading,
       }}
     >

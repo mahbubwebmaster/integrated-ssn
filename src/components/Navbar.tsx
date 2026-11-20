@@ -26,7 +26,7 @@ import { UserProfileModal } from "@/components/UserProfileModal";
 
 export function Navbar() {
   const pathname = usePathname();
-  const { currentUser, permissions } = useAuth();
+  const { currentUser, permissions, loading } = useAuth();
   const { language, setLanguage, t } = useLanguage();
   const [profileModalOpen, setProfileModalOpen] = useState(false);
   const [pendingRemovalCount, setPendingRemovalCount] = useState<number>(0);
@@ -167,45 +167,52 @@ export function Navbar() {
                   {t.common.activeRole}
                 </span>
 
-                <button
-                  type="button"
-                  onClick={() => setProfileModalOpen(true)}
-                  className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold border transition-all shadow-xs hover:brightness-125 cursor-pointer ${
-                    isSuperAdmin
-                      ? "bg-purple-950/80 text-purple-200 border-purple-500/60 hover:bg-purple-900/80"
-                      : isDeptOfficer
-                      ? "bg-blue-950/80 text-blue-200 border-blue-500/60 hover:bg-blue-900/80"
-                      : "bg-emerald-950/80 text-emerald-200 border-emerald-500/60 hover:bg-emerald-900/80"
-                  }`}
-                  title={language === "bn" ? "প্রোফাইল আপডেট, ছবি ও পাসওয়ার্ড পরিবর্তন" : "Profile, Photo & Security"}
-                >
-                  {currentUser.image ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      src={currentUser.image}
-                      alt={currentUser.name}
-                      className="w-4 h-4 rounded-full object-cover border border-emerald-400"
-                    />
-                  ) : (
-                    <Shield className="w-3 h-3 text-emerald-300" />
-                  )}
-                  <span className="font-bold">{currentRoleTitle}</span>
-                  {currentUser.upazilaName ? (
-                    <span className="text-amber-300 font-bold hidden sm:inline bg-amber-950/60 px-1.5 py-0.5 rounded border border-amber-600/40 text-[10px]">
-                      {currentUser.upazilaName}
-                    </span>
-                  ) : (
-                    <span className="text-purple-300 font-bold hidden sm:inline bg-purple-950/60 px-1.5 py-0.5 rounded border border-purple-600/40 text-[10px]">
-                      {language === "bn" ? "সমগ্র নেত্রকোণা জেলা" : "Netrokona District"}
-                    </span>
-                  )}
-                  {currentUser.designation && (
-                    <span className="text-emerald-300 font-medium hidden md:inline">
-                      • {currentUser.designation}
-                    </span>
-                  )}
-                  <span className="text-slate-300 font-normal hidden lg:inline">({currentUser.name})</span>
-                </button>
+                {loading || !currentUser.name ? (
+                  <div className="flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] bg-emerald-950/80 border border-emerald-500/30 animate-pulse">
+                    <Shield className="w-3 h-3 text-emerald-400/50" />
+                    <div className="h-2.5 w-24 bg-emerald-800/60 rounded" />
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setProfileModalOpen(true)}
+                    className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold border transition-all shadow-xs hover:brightness-125 cursor-pointer ${
+                      isSuperAdmin
+                        ? "bg-purple-950/80 text-purple-200 border-purple-500/60 hover:bg-purple-900/80"
+                        : isDeptOfficer
+                        ? "bg-blue-950/80 text-blue-200 border-blue-500/60 hover:bg-blue-900/80"
+                        : "bg-emerald-950/80 text-emerald-200 border-emerald-500/60 hover:bg-emerald-900/80"
+                    }`}
+                    title={language === "bn" ? "প্রোফাইল আপডেট, ছবি ও পাসওয়ার্ড পরিবর্তন" : "Profile, Photo & Security"}
+                  >
+                    {currentUser.image ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={currentUser.image}
+                        alt={currentUser.name}
+                        className="w-4 h-4 rounded-full object-cover border border-emerald-400"
+                      />
+                    ) : (
+                      <Shield className="w-3 h-3 text-emerald-300" />
+                    )}
+                    <span className="font-bold">{currentRoleTitle}</span>
+                    {currentUser.upazilaName ? (
+                      <span className="text-amber-300 font-bold hidden sm:inline bg-amber-950/60 px-1.5 py-0.5 rounded border border-amber-600/40 text-[10px]">
+                        {currentUser.upazilaName}
+                      </span>
+                    ) : (
+                      <span className="text-purple-300 font-bold hidden sm:inline bg-purple-950/60 px-1.5 py-0.5 rounded border border-purple-600/40 text-[10px]">
+                        {language === "bn" ? "সমগ্র নেত্রকোণা জেলা" : "Netrokona District"}
+                      </span>
+                    )}
+                    {currentUser.designation && (
+                      <span className="text-emerald-300 font-medium hidden md:inline">
+                        • {currentUser.designation}
+                      </span>
+                    )}
+                    <span className="text-slate-300 font-normal hidden lg:inline">({currentUser.name})</span>
+                  </button>
+                )}
               </div>
 
               {/* Sign Out Button */}

@@ -5,16 +5,10 @@ import { SessionProvider } from "next-auth/react";
 import { AuthProvider } from "@/context/AuthContext";
 import { LanguageProvider } from "@/context/LanguageContext";
 
-export function Providers({
-  children,
-  session,
-}: {
-  children: React.ReactNode;
-  session?: any;
-}) {
+export function Providers({ children }: { children: React.ReactNode }) {
   return (
-    <SessionProvider session={session}>
-      <AuthProvider initialSession={session}>
+    <SessionProvider>
+      <AuthProvider>
         <LanguageProvider>{children}</LanguageProvider>
       </AuthProvider>
     </SessionProvider>

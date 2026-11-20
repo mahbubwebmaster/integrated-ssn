@@ -22,22 +22,18 @@ export const metadata: Metadata = {
     "সমন্বিত সুবিধাভোগী ব্যবস্থাপনা ও সামাজিক নিরাপত্তা কর্মসূচি অডিট পোর্টাল • জেলা প্রশাসন, নেত্রকোণা",
 };
 
-import { auth } from "@/auth";
-
-export default async function RootLayout({
+export default function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const session = await auth();
-
   return (
     <html
       lang="bn"
       className={`${hindSiliguri.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col bg-slate-50 text-slate-900 font-sans overflow-x-hidden max-w-[100vw]">
-        <Providers session={session}>
+        <Providers>
           <AppShell>{children}</AppShell>
         </Providers>
       </body>
