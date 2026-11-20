@@ -124,6 +124,14 @@ export default function AdminUsersPage() {
   const [deleteTargetUser, setDeleteTargetUser] = useState<AdminUser | null>(null);
   const [deleting, setDeleting] = useState(false);
 
+  // Summary Metrics State (Aggregate counts across all records from server)
+  const [stats, setStats] = useState({
+    total: 0,
+    upazilaAdmins: 0,
+    deptOfficers: 0,
+    active: 0,
+  });
+
   // Auto-lock Upazila if logged in as Upazila Admin
   useEffect(() => {
     if (currentUser.upazilaName) {
@@ -176,6 +184,9 @@ export default function AdminUsersPage() {
 
       if (data?.success && Array.isArray(data.users)) {
         setUsers(data.users);
+        if (data.stats) {
+          setStats(data.stats);
+        }
         if (data.pagination) {
           setTotalRecords(data.pagination.total);
           setTotalPages(data.pagination.totalPages);
@@ -514,8 +525,7 @@ export default function AdminUsersPage() {
                 {language === "bn" ? "উপজেলা এডমিন (ইউএনও)" : "Upazila Admins"}
               </div>
               <div className="text-xl font-black text-amber-900 mt-1">
-                {formatNumber(users.filter((u) => u.role === "UPAZILA_ADMIN").length, language)}{" "}
-                {language === "bn" ? "জন" : "users"}
+                {formatNumber(stats.upazilaAdmins, language)} {language === "bn" ? "জন" : "users"}
               </div>
             </div>
             <div className="bg-blue-50/70 p-3.5 rounded-2xl border border-blue-200">
@@ -523,11 +533,7 @@ export default function AdminUsersPage() {
                 {t.roles.DEPT_OFFICER}
               </div>
               <div className="text-xl font-black text-blue-900 mt-1">
-                {formatNumber(
-                  users.filter((u) => u.role === "DEPT_OFFICER" || u.role === "DEPARTMENT_OFFICER").length,
-                  language
-                )}{" "}
-                {language === "bn" ? "জন" : "users"}
+                {formatNumber(stats.deptOfficers, language)} {language === "bn" ? "জন" : "users"}
               </div>
             </div>
             <div className="bg-purple-50/70 p-3.5 rounded-2xl border border-purple-200">
@@ -535,8 +541,7 @@ export default function AdminUsersPage() {
                 {t.adminUsers.statusActive}
               </div>
               <div className="text-xl font-black text-purple-900 mt-1">
-                {formatNumber(users.filter((u) => u.isActive).length, language)}{" "}
-                {language === "bn" ? "টি সক্রিয়" : "active"}
+                {formatNumber(stats.active, language)} {language === "bn" ? "টি সক্রিয়" : "active"}
               </div>
             </div>
           </div>

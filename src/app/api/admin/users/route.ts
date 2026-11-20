@@ -105,7 +105,45 @@ export async function GET(request: Request) {
       }
     }
 
-    const total = await prisma.user.count({ where: whereClause });
+    const scopeWhere: any = {};
+    if (upazilaParam && upazilaParam !== "all" && upazilaParam !== "সমগ্র জেলা" && upazilaParam !== "সমগ্র নেত্রকোণা জেলা") {
+      scopeWhere.upazilaName = upazilaParam;
+    }
+    if (departmentId && departmentId !== "ALL") {
+      scopeWhere.departmentId = departmentId;
+    }
+    if (search) {
+      scopeWhere.OR = [
+        { name: { contains: search } },
+        { email: { contains: search } },
+        { designation: { contains: search } },
+        { phone: { contains: search } },
+        { unionName: { contains: search } },
+        { upazilaName: { contains: search } },
+      ];
+    }
+
+    const [total, upazilaAdminCount, deptOfficerCount, activeCount] = await Promise.all([
+      prisma.user.count({ where: whereClause }),
+      prisma.user.count({
+        where: {
+          ...scopeWhere,
+          role: "UPAZILA_ADMIN",
+        },
+      }),
+      prisma.user.count({
+        where: {
+          ...scopeWhere,
+          role: { in: ["DEPT_OFFICER", "DEPARTMENT_OFFICER"] },
+        },
+      }),
+      prisma.user.count({
+        where: {
+          ...scopeWhere,
+          isActive: true,
+        },
+      }),
+    ]);
     const totalPages = Math.max(1, Math.ceil(total / limit));
     const effectivePage = Math.min(page, totalPages);
     const skip = exportAll ? undefined : (effectivePage - 1) * limit;
@@ -142,6 +180,12 @@ export async function GET(request: Request) {
       success: true,
       users,
       total,
+      stats: {
+        total,
+        upazilaAdmins: upazilaAdminCount,
+        deptOfficers: deptOfficerCount,
+        active: activeCount,
+      },
       pagination: {
         total,
         page: effectivePage,
