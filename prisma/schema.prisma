@@ -125,6 +125,11 @@ model Beneficiary {
   upazilaName     String           @default("নেত্রকোণা সদর")
   unionName       String
   wardNo          String
+  isArchived      Boolean          @default(false)
+  archiveReason   String?          // EXPIRED, DECEASED, DEPT_REMOVAL, OTHER
+  archiveNote     String?          // কর্মকর্তা কর্তৃক প্রদত্ত নোট
+  archivedAt      DateTime?
+  archivedBy      String?          // ব্যবহারকারীর নাম বা পদবী
   enrollments     Enrollment[]
   removalRequests RemovalRequest[]
   createdAt       DateTime         @default(now())
@@ -136,6 +141,7 @@ model Beneficiary {
   @@index([unionName, wardNo])
   @@index([gender])
   @@index([dateOfBirth])
+  @@index([isArchived])
 }
 
 model Enrollment {
@@ -144,7 +150,12 @@ model Enrollment {
   schemeId           String
   cardNumber         String?
   startDate          DateTime
-  status             String              // Active, Flagged, Suspended
+  status             String              // Active, Flagged, Suspended, Archived
+  isArchived         Boolean             @default(false)
+  archiveReason      String?             // EXPIRED, DECEASED, DEPT_REMOVAL, OTHER
+  archiveNote        String?             // কর্মকর্তা কর্তৃক প্রদত্ত নোট
+  archivedAt         DateTime?
+  archivedBy         String?
   uploadedBatchId    String?
   uploadedBatch      UploadBatch?        @relation(fields: [uploadedBatchId], references: [id], onDelete: SetNull)
   uploadedByUserId   String?
@@ -159,6 +170,7 @@ model Enrollment {
   @@index([beneficiaryId])
   @@index([schemeId])
   @@index([status])
+  @@index([isArchived])
   @@index([uploadedBatchId])
   @@index([uploadedByUserId])
 }

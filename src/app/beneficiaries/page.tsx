@@ -37,6 +37,9 @@ import {
   Sparkles,
   UploadCloud,
   Key,
+  Archive,
+  FolderArchive,
+  RotateCcw,
 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { useLanguage } from "@/context/LanguageContext";
@@ -63,6 +66,11 @@ interface Enrollment {
   cardNumber?: string | null;
   startDate: string;
   status: string;
+  isArchived?: boolean;
+  archiveReason?: string | null;
+  archiveNote?: string | null;
+  archivedAt?: string | null;
+  archivedBy?: string | null;
   scheme: {
     id: string;
     name: string;
@@ -70,6 +78,8 @@ interface Enrollment {
     department: {
       id: string;
       name: string;
+      nameBn?: string | null;
+      nameEn?: string | null;
     };
   };
 }
@@ -90,6 +100,11 @@ interface Beneficiary {
   upazilaName?: string | null;
   unionName: string;
   wardNo: string;
+  isArchived?: boolean;
+  archiveReason?: string | null;
+  archiveNote?: string | null;
+  archivedAt?: string | null;
+  archivedBy?: string | null;
   enrollments: Enrollment[];
 }
 
@@ -108,6 +123,26 @@ export default function BeneficiariesPage() {
   const [gender, setGender] = useState("");
   const [ageGroup, setAgeGroup] = useState("");
   const [selectedDeptId, setSelectedDeptId] = useState("");
+
+  // Interactive Status Filter: ALL, ACTIVE, SUSPENDED, ARCHIVED
+  const [statusFilter, setStatusFilter] = useState<"ALL" | "ACTIVE" | "SUSPENDED" | "ARCHIVED">("ALL");
+  const [statusCounts, setStatusCounts] = useState({
+    all: 0,
+    active: 0,
+    suspended: 0,
+    archived: 0,
+  });
+
+  // Archive Modal State
+  const [isArchiveOpen, setIsArchiveOpen] = useState(false);
+  const [archivingBeneficiary, setArchivingBeneficiary] = useState<Beneficiary | null>(null);
+  const [archiveForm, setArchiveForm] = useState({
+    enrollmentId: "",
+    reason: "BENEFIT_EXPIRED", // BENEFIT_EXPIRED, DECEASED, DEPT_REMOVAL, INELIGIBLE
+    note: "",
+  });
+  const [archiveSubmitting, setArchiveSubmitting] = useState(false);
+  const [archiveError, setArchiveError] = useState<string | null>(null);
 
   // Pagination State
   const [currentPage, setCurrentPage] = useState(1);
@@ -266,10 +301,6 @@ export default function BeneficiariesPage() {
   const [editSubmitting, setEditSubmitting] = useState(false);
   const [editError, setEditError] = useState<string | null>(null);
 
-  // Delete Modal State
-  const [deletingBeneficiary, setDeletingBeneficiary] = useState<Beneficiary | null>(null);
-  const [deleteSubmitting, setDeleteSubmitting] = useState(false);
-
   const unionsForCreate = useMemo(() => {
     const matched = NETROKONA_UPAZILAS.find(
       (u) => u.nameBn === createForm.upazilaName || u.nameEn === createForm.upazilaName
@@ -349,12 +380,12 @@ export default function BeneficiariesPage() {
   // Reset to first page when any search/filter changes
   useEffect(() => {
     setCurrentPage(1);
-  }, [search, upazila, union, ward, gender, ageGroup, selectedDeptId]);
+  }, [search, upazila, union, ward, gender, ageGroup, selectedDeptId, statusFilter]);
 
   // Fetch beneficiaries when pagination or filters change
   useEffect(() => {
     fetchBeneficiaries(currentPage, pageSize);
-  }, [currentPage, pageSize, search, upazila, union, ward, gender, ageGroup, selectedDeptId]);
+  }, [currentPage, pageSize, search, upazila, union, ward, gender, ageGroup, selectedDeptId, statusFilter]);
 
   const fetchBeneficiaries = async (pageToFetch = currentPage, limitToFetch = pageSize) => {
     try {
@@ -369,11 +400,15 @@ export default function BeneficiariesPage() {
       if (gender) params.set("gender", gender);
       if (ageGroup) params.set("ageGroup", ageGroup);
       if (selectedDeptId) params.set("departmentId", selectedDeptId);
+      if (statusFilter && statusFilter !== "ALL") params.set("statusFilter", statusFilter);
 
       const res = await fetch(`/api/beneficiaries?${params.toString()}`);
       const data = await res.json();
       if (data?.success && data?.beneficiaries) {
         setBeneficiaries(data.beneficiaries);
+        if (data.statusCounts) {
+          setStatusCounts(data.statusCounts);
+        }
         if (data.pagination) {
           setTotalRecords(data.pagination.total);
           setTotalPages(data.pagination.totalPages);
@@ -720,45 +755,99 @@ export default function BeneficiariesPage() {
     }
   };
 
-  // Open Delete Modal
-  const handleOpenDelete = (b: Beneficiary) => {
-    setDeletingBeneficiary(b);
+  // Open Archive Modal
+  const handleOpenArchive = (b: Beneficiary, defaultEnrollmentId?: string) => {
+    const relevantEnrollment = isDeptOfficer && currentUser.departmentId
+      ? b.enrollments.find((e) => e.scheme.department.id === currentUser.departmentId) || b.enrollments[0]
+      : b.enrollments[0];
+
+    setArchivingBeneficiary(b);
+    setArchiveForm({
+      enrollmentId: defaultEnrollmentId || (isDeptOfficer ? relevantEnrollment?.id || "" : ""),
+      reason: "BENEFIT_EXPIRED",
+      note: "",
+    });
+    setArchiveError(null);
+    setIsArchiveOpen(true);
   };
 
-  // Confirm Delete
-  const handleConfirmDelete = async () => {
-    if (!deletingBeneficiary) return;
+  // Confirm Archive
+  const handleConfirmArchive = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!archivingBeneficiary) return;
+    if (!archiveForm.note.trim()) {
+      setArchiveError("অনুগ্রহ করে একটি দাপ্তরিক নোট বা কারণ উল্লেখ করুন।");
+      return;
+    }
 
     try {
-      setDeleteSubmitting(true);
-      const params = new URLSearchParams();
-      params.set("id", deletingBeneficiary.id);
-      if (isDeptOfficer && currentUser.departmentId) {
-        params.set("departmentId", currentUser.departmentId);
-      }
+      setArchiveSubmitting(true);
+      setArchiveError(null);
 
-      const res = await fetch(`/api/beneficiaries?${params.toString()}`, {
-        method: "DELETE",
+      const res = await fetch("/api/beneficiaries/archive", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          beneficiaryId: archivingBeneficiary.id,
+          enrollmentId: archiveForm.enrollmentId || undefined,
+          reason: archiveForm.reason,
+          note: archiveForm.note.trim(),
+          userEmail: currentUser.email,
+          userName: currentUser.name,
+          userRole: currentUser.role,
+        }),
       });
 
       const data = await res.json();
       if (data.success) {
         setSuccessMessage(
           language === "bn"
-            ? `উপকারভোগী "${deletingBeneficiary.fullName}" এর রেকর্ড সফলভাবে মুছে ফেলা হয়েছে।`
-            : `Beneficiary "${deletingBeneficiary.fullName}" deleted successfully.`
+            ? `সুবিধাভোগী "${archivingBeneficiary.nameBn || archivingBeneficiary.fullName}" এর তথ্য সফলভাবে আর্কাইভ করা হয়েছে।`
+            : `Beneficiary "${archivingBeneficiary.nameBn || archivingBeneficiary.fullName}" has been archived.`
         );
         setTimeout(() => setSuccessMessage(null), 5000);
-        setDeletingBeneficiary(null);
-        fetchBeneficiaries();
+        setIsArchiveOpen(false);
+        fetchBeneficiaries(currentPage, pageSize);
       } else {
-        alert(data.error || "Failed to delete.");
+        setArchiveError(data.error || "আর্কাইভ করতে ব্যর্থ হয়েছে।");
+      }
+    } catch (err: any) {
+      console.error(err);
+      setArchiveError("আর্কাইভ করার সময় অপ্রত্যাশিত ত্রুটি ঘটেছে।");
+    } finally {
+      setArchiveSubmitting(false);
+    }
+  };
+
+  // Restore from Archive
+  const handleRestoreFromArchive = async (beneficiaryId: string, enrollmentId?: string) => {
+    if (!confirm(language === "bn" ? "আপনি কি নিশ্চিতভাবে এই সুবিধাভোগীকে আর্কাইভ থেকে সক্রিয় তালিকায় ফিরিয়ে আনতে চান?" : "Are you sure you want to restore this beneficiary from archive?")) {
+      return;
+    }
+
+    try {
+      const params = new URLSearchParams();
+      if (beneficiaryId) params.set("beneficiaryId", beneficiaryId);
+      if (enrollmentId) params.set("enrollmentId", enrollmentId);
+
+      const res = await fetch(`/api/beneficiaries/archive?${params.toString()}`, {
+        method: "DELETE",
+      });
+      const data = await res.json();
+      if (data.success) {
+        setSuccessMessage(
+          language === "bn"
+            ? "সুবিধাভোগীকে আর্কাইভ থেকে সফলভাবে পুনরুদ্ধার করা হয়েছে।"
+            : "Beneficiary restored from archive successfully."
+        );
+        setTimeout(() => setSuccessMessage(null), 5000);
+        fetchBeneficiaries(currentPage, pageSize);
+      } else {
+        alert(data.error || "পুনরুদ্ধার করা যায়নি।");
       }
     } catch (err) {
       console.error(err);
-      alert("An error occurred while deleting.");
-    } finally {
-      setDeleteSubmitting(false);
+      alert("পুনরুদ্ধার করার সময় ত্রুটি হয়েছে।");
     }
   };
 
@@ -918,6 +1007,157 @@ export default function BeneficiariesPage() {
               {t.beneficiariesPage.printPdf}
             </button>
           </div>
+        </div>
+
+        {/* 4 Interactive Status Filter Cards */}
+        <div className="no-print grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+          {/* 1. All Beneficiaries */}
+          <button
+            type="button"
+            onClick={() => {
+              setStatusFilter("ALL");
+              setCurrentPage(1);
+            }}
+            className={`text-left p-4 rounded-2xl border transition-all cursor-pointer relative overflow-hidden flex flex-col justify-between ${
+              statusFilter === "ALL"
+                ? "bg-slate-900 text-white border-slate-900 shadow-md ring-2 ring-slate-900 ring-offset-2"
+                : "bg-white text-slate-800 border-slate-200 hover:border-slate-300 hover:bg-slate-50/80 shadow-xs"
+            }`}
+          >
+            <div className="flex items-center justify-between">
+              <span className={`text-xs font-bold uppercase tracking-wider ${
+                statusFilter === "ALL" ? "text-slate-300" : "text-slate-500"
+              }`}>
+                {language === "bn" ? "সকল সুবিধাভোগী" : "All Beneficiaries"}
+              </span>
+              <div className={`w-8 h-8 rounded-xl flex items-center justify-center ${
+                statusFilter === "ALL" ? "bg-white/10 text-white" : "bg-slate-100 text-slate-700"
+              }`}>
+                <Users className="w-4 h-4" />
+              </div>
+            </div>
+            <div className="mt-3 flex items-baseline justify-between">
+              <span className="text-2xl sm:text-3xl font-extrabold tracking-tight">
+                {formatNumber(statusCounts.all || 0, language)}
+              </span>
+              <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${
+                statusFilter === "ALL" ? "bg-white/20 text-white" : "bg-slate-100 text-slate-600"
+              }`}>
+                {language === "bn" ? "মোট রেকর্ড" : "Total"}
+              </span>
+            </div>
+          </button>
+
+          {/* 2. Active Beneficiaries */}
+          <button
+            type="button"
+            onClick={() => {
+              setStatusFilter("ACTIVE");
+              setCurrentPage(1);
+            }}
+            className={`text-left p-4 rounded-2xl border transition-all cursor-pointer relative overflow-hidden flex flex-col justify-between ${
+              statusFilter === "ACTIVE"
+                ? "bg-emerald-700 text-white border-emerald-700 shadow-md ring-2 ring-emerald-600 ring-offset-2"
+                : "bg-white text-slate-800 border-slate-200 hover:border-emerald-300 hover:bg-emerald-50/30 shadow-xs"
+            }`}
+          >
+            <div className="flex items-center justify-between">
+              <span className={`text-xs font-bold uppercase tracking-wider ${
+                statusFilter === "ACTIVE" ? "text-emerald-100" : "text-emerald-700"
+              }`}>
+                {language === "bn" ? "সক্রিয় সুবিধাভোগী" : "Active Beneficiaries"}
+              </span>
+              <div className={`w-8 h-8 rounded-xl flex items-center justify-center ${
+                statusFilter === "ACTIVE" ? "bg-white/20 text-white" : "bg-emerald-100 text-emerald-700"
+              }`}>
+                <CheckCircle2 className="w-4 h-4" />
+              </div>
+            </div>
+            <div className="mt-3 flex items-baseline justify-between">
+              <span className="text-2xl sm:text-3xl font-extrabold tracking-tight">
+                {formatNumber(statusCounts.active || 0, language)}
+              </span>
+              <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${
+                statusFilter === "ACTIVE" ? "bg-white/20 text-white" : "bg-emerald-100 text-emerald-800"
+              }`}>
+                {language === "bn" ? "নিয়মিত ভাতাভোগী" : "Active"}
+              </span>
+            </div>
+          </button>
+
+          {/* 3. Cancelled Beneficiaries */}
+          <button
+            type="button"
+            onClick={() => {
+              setStatusFilter("SUSPENDED");
+              setCurrentPage(1);
+            }}
+            className={`text-left p-4 rounded-2xl border transition-all cursor-pointer relative overflow-hidden flex flex-col justify-between ${
+              statusFilter === "SUSPENDED"
+                ? "bg-rose-700 text-white border-rose-700 shadow-md ring-2 ring-rose-600 ring-offset-2"
+                : "bg-white text-slate-800 border-slate-200 hover:border-rose-300 hover:bg-rose-50/30 shadow-xs"
+            }`}
+          >
+            <div className="flex items-center justify-between">
+              <span className={`text-xs font-bold uppercase tracking-wider ${
+                statusFilter === "SUSPENDED" ? "text-rose-100" : "text-rose-700"
+              }`}>
+                {language === "bn" ? "বাতিলকৃত সুবিধাভোগী" : "Cancelled Beneficiaries"}
+              </span>
+              <div className={`w-8 h-8 rounded-xl flex items-center justify-center ${
+                statusFilter === "SUSPENDED" ? "bg-white/20 text-white" : "bg-rose-100 text-rose-700"
+              }`}>
+                <Ban className="w-4 h-4" />
+              </div>
+            </div>
+            <div className="mt-3 flex items-baseline justify-between">
+              <span className="text-2xl sm:text-3xl font-extrabold tracking-tight">
+                {formatNumber(statusCounts.suspended || 0, language)}
+              </span>
+              <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${
+                statusFilter === "SUSPENDED" ? "bg-white/20 text-white" : "bg-rose-100 text-rose-800"
+              }`}>
+                {language === "bn" ? "স্থগিত / বাতিল" : "Cancelled"}
+              </span>
+            </div>
+          </button>
+
+          {/* 4. Archived Beneficiaries */}
+          <button
+            type="button"
+            onClick={() => {
+              setStatusFilter("ARCHIVED");
+              setCurrentPage(1);
+            }}
+            className={`text-left p-4 rounded-2xl border transition-all cursor-pointer relative overflow-hidden flex flex-col justify-between ${
+              statusFilter === "ARCHIVED"
+                ? "bg-purple-700 text-white border-purple-700 shadow-md ring-2 ring-purple-600 ring-offset-2"
+                : "bg-white text-slate-800 border-slate-200 hover:border-purple-300 hover:bg-purple-50/30 shadow-xs"
+            }`}
+          >
+            <div className="flex items-center justify-between">
+              <span className={`text-xs font-bold uppercase tracking-wider ${
+                statusFilter === "ARCHIVED" ? "text-purple-100" : "text-purple-700"
+              }`}>
+                {language === "bn" ? "আর্কাইভ সুবিধাভোগী" : "Archived Beneficiaries"}
+              </span>
+              <div className={`w-8 h-8 rounded-xl flex items-center justify-center ${
+                statusFilter === "ARCHIVED" ? "bg-white/20 text-white" : "bg-purple-100 text-purple-700"
+              }`}>
+                <FolderArchive className="w-4 h-4" />
+              </div>
+            </div>
+            <div className="mt-3 flex items-baseline justify-between">
+              <span className="text-2xl sm:text-3xl font-extrabold tracking-tight">
+                {formatNumber(statusCounts.archived || 0, language)}
+              </span>
+              <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${
+                statusFilter === "ARCHIVED" ? "bg-white/20 text-white" : "bg-purple-100 text-purple-800"
+              }`}>
+                {language === "bn" ? "মেয়াদোত্তীর্ণ / মৃত" : "Archived"}
+              </span>
+            </div>
+          </button>
         </div>
 
         {/* Filters */}
@@ -1212,39 +1452,71 @@ export default function BeneficiariesPage() {
                         </td>
 
                         <td className="py-3.5 px-4 space-y-1">
-                          {b.enrollments.map((enr) => (
-                            <div
-                              key={enr.id}
-                              className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded bg-slate-100 border border-slate-200 text-[11px] mr-1 mb-1"
-                            >
-                              <span className="font-medium text-slate-800">
-                                {getSchemeName(enr.scheme, language)}
-                              </span>
-                              <span className="text-emerald-700 font-bold">
-                                {formatCurrency(enr.scheme.monthlyAmount, language)}
-                              </span>
-                              {enr.cardNumber && (
-                                <span className="text-[10px] text-slate-500 font-mono">
-                                  #{enr.cardNumber}
-                                </span>
-                              )}
-                              <span
-                                className={`text-[9px] px-1 rounded uppercase font-bold ${
-                                  enr.status === "Active"
-                                    ? "bg-emerald-200 text-emerald-900"
-                                    : enr.status === "Flagged"
-                                    ? "bg-red-200 text-red-900"
-                                    : "bg-slate-300 text-slate-700"
-                                }`}
-                              >
-                                {enr.status === "Active"
-                                  ? t.beneficiariesPage.statusActive
-                                  : enr.status === "Suspended"
-                                  ? t.beneficiariesPage.statusSuspended
-                                  : enr.status}
-                              </span>
-                            </div>
-                          ))}
+                          {b.enrollments.map((enr) => {
+                            const isEnrArchived = enr.isArchived || b.isArchived || enr.status === "Archived";
+                            const noteText = enr.archiveNote || (b.isArchived ? b.archiveNote : null);
+                            const reasonText = enr.archiveReason || (b.isArchived ? b.archiveReason : null);
+
+                            return (
+                              <div key={enr.id} className="mb-1.5 last:mb-0">
+                                <div
+                                  className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-[11px] border ${
+                                    isEnrArchived
+                                      ? "bg-purple-50 border-purple-200"
+                                      : "bg-slate-100 border-slate-200"
+                                  }`}
+                                >
+                                  <span className="font-medium text-slate-800">
+                                    {getSchemeName(enr.scheme, language)}
+                                  </span>
+                                  <span className="text-emerald-700 font-bold">
+                                    {formatCurrency(enr.scheme.monthlyAmount, language)}
+                                  </span>
+                                  {enr.cardNumber && (
+                                    <span className="text-[10px] text-slate-500 font-mono">
+                                      #{enr.cardNumber}
+                                    </span>
+                                  )}
+                                  <span
+                                    className={`text-[9px] px-1 rounded uppercase font-bold ${
+                                      isEnrArchived
+                                        ? "bg-purple-200 text-purple-900 border border-purple-300"
+                                        : enr.status === "Active"
+                                        ? "bg-emerald-200 text-emerald-900"
+                                        : enr.status === "Flagged"
+                                        ? "bg-red-200 text-red-900"
+                                        : "bg-slate-300 text-slate-700"
+                                    }`}
+                                  >
+                                    {isEnrArchived
+                                      ? (language === "bn" ? "আর্কাইভকৃত" : "Archived")
+                                      : enr.status === "Active"
+                                      ? t.beneficiariesPage.statusActive
+                                      : enr.status === "Suspended"
+                                      ? t.beneficiariesPage.statusSuspended
+                                      : enr.status}
+                                  </span>
+                                </div>
+                                {isEnrArchived && noteText && (
+                                  <div className="mt-0.5 text-[10px] text-purple-700 bg-purple-50/80 rounded px-1.5 py-0.5 border border-purple-200/80 flex items-center gap-1 max-w-[280px]">
+                                    <FolderArchive className="w-3 h-3 shrink-0 text-purple-600" />
+                                    <span className="truncate" title={noteText}>
+                                      <span className="font-semibold">
+                                        {reasonText === "DECEASED"
+                                          ? (language === "bn" ? "মৃত: " : "Deceased: ")
+                                          : reasonText === "BENEFIT_EXPIRED"
+                                          ? (language === "bn" ? "মেয়াদ শেষ: " : "Expired: ")
+                                          : reasonText === "DEPT_REMOVAL"
+                                          ? (language === "bn" ? "অপসারণ: " : "Removed: ")
+                                          : (language === "bn" ? "নোট: " : "Note: ")}
+                                      </span>
+                                      {noteText}
+                                    </span>
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
                         </td>
 
                         <td className="py-3.5 px-4">
@@ -1265,17 +1537,37 @@ export default function BeneficiariesPage() {
                           )}
                         </td>
 
-                        {/* Edit Action Button Only (Beneficiary deletion prohibited for all admin roles) */}
+                        {/* Actions Column: Edit, Archive / Restore */}
                         {!isUnionViewer && (
-                          <td className="no-print py-3.5 px-4 text-right space-x-1 whitespace-nowrap">
+                          <td className="no-print py-3.5 px-4 text-right space-x-1.5 whitespace-nowrap">
                             <button
                               onClick={() => handleOpenEdit(b)}
                               title={t.beneficiariesPage.btnEdit}
-                              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-bold border border-blue-200 transition-colors cursor-pointer shadow-xs"
+                              className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-bold border border-blue-200 transition-colors cursor-pointer shadow-xs"
                             >
                               <Edit2 className="w-3.5 h-3.5" />
                               <span>{t.beneficiariesPage.btnEdit}</span>
                             </button>
+
+                            {b.isArchived ? (
+                              <button
+                                onClick={() => handleRestoreFromArchive(b.id)}
+                                title={language === "bn" ? "আর্কাইভ থেকে সক্রিয় করুন" : "Restore from archive"}
+                                className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-xs font-bold border border-emerald-200 transition-colors cursor-pointer shadow-xs"
+                              >
+                                <RotateCcw className="w-3.5 h-3.5" />
+                                <span>{language === "bn" ? "পুনরুদ্ধার" : "Restore"}</span>
+                              </button>
+                            ) : (
+                              <button
+                                onClick={() => handleOpenArchive(b)}
+                                title={language === "bn" ? "নোট দিয়ে আর্কাইভ করুন" : "Archive with note"}
+                                className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-purple-50 hover:bg-purple-100 text-purple-700 text-xs font-bold border border-purple-200 transition-colors cursor-pointer shadow-xs"
+                              >
+                                <FolderArchive className="w-3.5 h-3.5" />
+                                <span>{language === "bn" ? "আর্কাইভ" : "Archive"}</span>
+                              </button>
+                            )}
                           </td>
                         )}
                       </tr>
@@ -2169,70 +2461,158 @@ export default function BeneficiariesPage() {
         </div>
       )}
 
-      {/* Delete Confirmation Modal */}
-      {deletingBeneficiary && (
+      {/* Archive Modal */}
+      {isArchiveOpen && archivingBeneficiary && (
         <div className="no-print fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-200">
-          <div className="bg-white rounded-2xl sm:rounded-3xl shadow-2xl border border-slate-200 w-[95vw] max-w-md max-h-[90vh] overflow-y-auto p-4 sm:p-6 space-y-4">
-            <div className="w-12 h-12 rounded-2xl bg-red-100 text-red-600 flex items-center justify-center mx-auto">
-              <Trash2 className="w-6 h-6" />
-            </div>
-
-            <div className="text-center space-y-2">
-              <h3 className="text-base font-bold text-slate-900">
-                {t.beneficiariesPage.deleteModalTitle}
-              </h3>
-              <p className="text-xs text-slate-600">
-                {t.beneficiariesPage.deleteConfirmText}
-              </p>
-            </div>
-
-            <div className="bg-slate-50 rounded-xl p-3 border border-slate-200 text-xs space-y-1">
-              <div>
-                <span className="font-semibold text-slate-600">
-                  {language === "bn" ? "উপকারভোগীর নাম:" : "Beneficiary Name:"}
-                </span>{" "}
-                <span className="font-bold text-slate-900">{deletingBeneficiary.fullName}</span>
-              </div>
-              {deletingBeneficiary.nid && (
+          <div className="bg-white rounded-2xl sm:rounded-3xl shadow-2xl border border-slate-200 w-[95vw] max-w-lg max-h-[90vh] overflow-y-auto p-4 sm:p-6 space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-200">
+              <div className="flex items-center gap-2.5">
+                <div className="w-10 h-10 rounded-xl bg-purple-100 text-purple-700 flex items-center justify-center">
+                  <FolderArchive className="w-5 h-5" />
+                </div>
                 <div>
-                  <span className="font-semibold text-slate-600">
-                    {language === "bn" ? "এনআইডি:" : "NID:"}
-                  </span>{" "}
-                  <span className="font-mono text-slate-800">{deletingBeneficiary.nid}</span>
+                  <h3 className="text-base font-bold text-slate-900">
+                    {language === "bn" ? "সুবিধাভোগীর তথ্য আর্কাইভ করুন" : "Archive Beneficiary Record"}
+                  </h3>
+                  <p className="text-xs text-slate-500">
+                    {language === "bn"
+                      ? "মেয়াদ শেষ, মৃত্যু বা অপসারণের কারণে তথ্য সংরক্ষণ ও আর্কাইভ করা হচ্ছে"
+                      : "Archive record due to expiration, demise or department removal"}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsArchiveOpen(false)}
+                className="text-slate-400 hover:text-slate-600 p-1 rounded-lg"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {archiveError && (
+              <div className="bg-red-50 border border-red-200 text-red-700 text-xs p-3 rounded-xl flex items-center gap-2">
+                <AlertTriangle className="w-4 h-4 shrink-0" />
+                <span>{archiveError}</span>
+              </div>
+            )}
+
+            {/* Beneficiary Summary Card */}
+            <div className="bg-slate-50 rounded-xl p-3 border border-slate-200 text-xs space-y-1.5">
+              <div className="flex justify-between items-center">
+                <span className="text-slate-500">{language === "bn" ? "নাম:" : "Name:"}</span>
+                <span className="font-bold text-slate-900">{archivingBeneficiary.nameBn || archivingBeneficiary.fullName}</span>
+              </div>
+              {archivingBeneficiary.nid && (
+                <div className="flex justify-between items-center">
+                  <span className="text-slate-500">{language === "bn" ? "এনআইডি:" : "NID:"}</span>
+                  <span className="font-mono text-slate-800">{archivingBeneficiary.nid}</span>
                 </div>
               )}
-              <div>
-                <span className="font-semibold text-slate-600">
-                  {language === "bn" ? "ইউনিয়ন ও ওয়ার্ড:" : "Union & Ward:"}
-                </span>{" "}
+              <div className="flex justify-between items-center">
+                <span className="text-slate-500">{language === "bn" ? "পিতার নাম:" : "Father's Name:"}</span>
+                <span className="text-slate-800">{archivingBeneficiary.fatherName || archivingBeneficiary.guardianName || "প্রযোজ্য নয়"}</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-slate-500">{language === "bn" ? "ঠিকানা:" : "Address:"}</span>
                 <span className="text-slate-800">
-                  {deletingBeneficiary.unionName}, {language === "bn" ? `ওয়ার্ড ${deletingBeneficiary.wardNo}` : `Ward ${deletingBeneficiary.wardNo}`}
+                  {archivingBeneficiary.upazilaName}, {archivingBeneficiary.unionName} ({language === "bn" ? `ওয়ার্ড ${formatNumber(archivingBeneficiary.wardNo, language)}` : `Ward ${archivingBeneficiary.wardNo}`})
                 </span>
               </div>
             </div>
 
-            <div className="flex items-center justify-center gap-3 pt-2">
-              <button
-                type="button"
-                onClick={() => setDeletingBeneficiary(null)}
-                className="w-1/2 py-2 rounded-xl border border-slate-300 text-slate-700 text-xs font-semibold hover:bg-slate-50 cursor-pointer"
-              >
-                {t.beneficiariesPage.btnCancel}
-              </button>
-              <button
-                type="button"
-                onClick={handleConfirmDelete}
-                disabled={deleteSubmitting}
-                className="w-1/2 inline-flex items-center justify-center gap-1.5 py-2 rounded-xl bg-red-600 hover:bg-red-700 text-white text-xs font-bold shadow-xs transition-all disabled:opacity-50 cursor-pointer"
-              >
-                {deleteSubmitting ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                ) : (
-                  <Trash2 className="w-4 h-4" />
-                )}
-                {t.beneficiariesPage.btnConfirmDelete}
-              </button>
-            </div>
+            <form onSubmit={handleConfirmArchive} className="space-y-4">
+              {/* If beneficiary has multiple enrollments, officer can choose specific enrollment or whole citizen */}
+              {archivingBeneficiary.enrollments.length > 1 && (
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    {language === "bn" ? "আর্কাইভের আওতা:" : "Archive Scope:"}
+                  </label>
+                  <select
+                    value={archiveForm.enrollmentId}
+                    onChange={(e) => setArchiveForm({ ...archiveForm, enrollmentId: e.target.value })}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs focus:ring-2 focus:ring-purple-500 focus:outline-none bg-white font-medium"
+                  >
+                    <option value="">
+                      {language === "bn" ? "সম্পূর্ণ নাগরিক প্রোফাইল আর্কাইভ করুন (সকল ভাতা)" : "Archive full citizen profile (all schemes)"}
+                    </option>
+                    {archivingBeneficiary.enrollments.map((enr) => (
+                      <option key={enr.id} value={enr.id}>
+                        {language === "bn" ? "শুধুমাত্র: " : "Only: "}
+                        {getSchemeName(enr.scheme, language)} ({getDepartmentName(enr.scheme.department, language)})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              {/* Archive Reason */}
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  {language === "bn" ? "আর্কাইভের কারণ নির্বাচন করুন *" : "Select Reason *"}
+                </label>
+                <select
+                  value={archiveForm.reason}
+                  onChange={(e) => setArchiveForm({ ...archiveForm, reason: e.target.value })}
+                  className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs focus:ring-2 focus:ring-purple-500 focus:outline-none bg-white font-medium"
+                >
+                  <option value="BENEFIT_EXPIRED">
+                    {language === "bn" ? "১. ভাতার/বেনিফিটের মেয়াদ শেষ হয়েছে" : "1. Benefit period expired"}
+                  </option>
+                  <option value="DECEASED">
+                    {language === "bn" ? "২. সুবিধাভোগী মৃত্যুবরণ করেছেন (মারা গেছেন)" : "2. Beneficiary is deceased"}
+                  </option>
+                  <option value="DEPT_REMOVAL">
+                    {language === "bn" ? "৩. দপ্তর কর্মকর্তা কর্তৃক তালিকা থেকে অপসারণ" : "3. Department officer removal"}
+                  </option>
+                  <option value="INELIGIBLE">
+                    {language === "bn" ? "৪. সরকারি নীতিমালা অনুযায়ী অযোগ্য প্রমাণিত" : "4. Ineligible according to policy"}
+                  </option>
+                </select>
+              </div>
+
+              {/* Official Note */}
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  {language === "bn" ? "দাপ্তরিক মন্তব্য / নোট (বাধ্যতামূলক) *" : "Official Note / Remarks (Required) *"}
+                </label>
+                <textarea
+                  required
+                  rows={3}
+                  value={archiveForm.note}
+                  onChange={(e) => setArchiveForm({ ...archiveForm, note: e.target.value })}
+                  placeholder={
+                    language === "bn"
+                      ? "যেমন: ৩০ জুন ২০২৪ এ ভাতার মেয়াদ শেষ হয়েছে / গত ০৫ মে ২০২৪ এ মৃত্যুবরণ করেছেন / মেমোরেন্ডাম নং অনুসারে বাতিল ও আর্কাইভ করা হলো..."
+                      : "Enter official remarks, expiration date, or reason..."
+                  }
+                  className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs focus:ring-2 focus:ring-purple-500 focus:outline-none leading-relaxed"
+                />
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setIsArchiveOpen(false)}
+                  className="px-4 py-2 rounded-xl border border-slate-300 text-slate-700 text-xs font-semibold hover:bg-slate-50 cursor-pointer"
+                >
+                  {t.beneficiariesPage.btnCancel}
+                </button>
+                <button
+                  type="submit"
+                  disabled={archiveSubmitting}
+                  className="inline-flex items-center gap-1.5 px-5 py-2 rounded-xl bg-purple-700 hover:bg-purple-800 text-white text-xs font-bold shadow-xs transition-all disabled:opacity-50 cursor-pointer"
+                >
+                  {archiveSubmitting ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <FolderArchive className="w-4 h-4" />
+                  )}
+                  {language === "bn" ? "আর্কাইভ নিশ্চিত করুন" : "Confirm Archive"}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

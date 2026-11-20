@@ -84,6 +84,7 @@ export async function GET(request: Request) {
     const ageGroup = searchParams.get("ageGroup")?.trim() || "";
     const minAge = searchParams.get("minAge")?.trim() || "";
     const maxAge = searchParams.get("maxAge")?.trim() || "";
+    const statusFilter = searchParams.get("statusFilter")?.trim() || "ALL"; // ALL, ACTIVE, SUSPENDED, ARCHIVED
     const page = Math.max(1, parseInt(searchParams.get("page") || "1", 10));
     const limit = Math.max(1, Math.min(500, parseInt(searchParams.get("limit") || "10", 10)));
     const exportAll = searchParams.get("all") === "true";
@@ -96,34 +97,34 @@ export async function GET(request: Request) {
       upazila = userUpazila;
     }
 
-    const whereClause: any = {
-      ...(district ? { district } : {}),
-      ...(upazila && upazila !== "all" && upazila !== "সমগ্র জেলা" ? { upazilaName: upazila } : {}),
-      ...(union ? { unionName: { contains: union } } : {}),
-      ...(ward ? { wardNo: ward } : {}),
-      ...(gender ? { gender } : {}),
-    };
+    const andConditions: any[] = [];
+
+    if (district) andConditions.push({ district });
+    if (upazila && upazila !== "all" && upazila !== "সমগ্র জেলা") andConditions.push({ upazilaName: upazila });
+    if (union) andConditions.push({ unionName: { contains: union } });
+    if (ward) andConditions.push({ wardNo: ward });
+    if (gender) andConditions.push({ gender });
 
     if (userRole === "UNION_VIEWER" && userUnion) {
-      whereClause.unionName = { contains: userUnion };
+      andConditions.push({ unionName: { contains: userUnion } });
     }
 
     // Age / Date of Birth Filtering
     const now = new Date();
     if (ageGroup === "0-17" || ageGroup === "child") {
       const cutoff = new Date(now.getFullYear() - 18, now.getMonth(), now.getDate());
-      whereClause.dateOfBirth = { gt: cutoff };
+      andConditions.push({ dateOfBirth: { gt: cutoff } });
     } else if (ageGroup === "18-35" || ageGroup === "youth") {
       const lower = new Date(now.getFullYear() - 36, now.getMonth(), now.getDate());
       const upper = new Date(now.getFullYear() - 18, now.getMonth(), now.getDate());
-      whereClause.dateOfBirth = { gte: lower, lte: upper };
+      andConditions.push({ dateOfBirth: { gte: lower, lte: upper } });
     } else if (ageGroup === "36-59" || ageGroup === "adult") {
       const lower = new Date(now.getFullYear() - 60, now.getMonth(), now.getDate());
       const upper = new Date(now.getFullYear() - 36, now.getMonth(), now.getDate());
-      whereClause.dateOfBirth = { gte: lower, lte: upper };
+      andConditions.push({ dateOfBirth: { gte: lower, lte: upper } });
     } else if (ageGroup === "60+" || ageGroup === "senior") {
       const cutoff = new Date(now.getFullYear() - 60, now.getMonth(), now.getDate());
-      whereClause.dateOfBirth = { lte: cutoff };
+      andConditions.push({ dateOfBirth: { lte: cutoff } });
     } else if (minAge || maxAge) {
       const cond: any = {};
       if (minAge) {
@@ -139,37 +140,147 @@ export async function GET(request: Request) {
         }
       }
       if (Object.keys(cond).length > 0) {
-        whereClause.dateOfBirth = cond;
+        andConditions.push({ dateOfBirth: cond });
       }
     }
 
     if (search) {
-      whereClause.OR = [
-        { fullName: { contains: search } },
-        { nameBn: { contains: search } },
-        { nameEn: { contains: search } },
-        { fatherName: { contains: search } },
-        { guardianName: { contains: search } },
-        { nid: { contains: search } },
-        { brn: { contains: search } },
-        { mobile: { contains: search } },
-      ];
+      andConditions.push({
+        OR: [
+          { fullName: { contains: search } },
+          { nameBn: { contains: search } },
+          { nameEn: { contains: search } },
+          { fatherName: { contains: search } },
+          { guardianName: { contains: search } },
+          { nid: { contains: search } },
+          { brn: { contains: search } },
+          { mobile: { contains: search } },
+        ],
+      });
     }
 
     // If departmentId is provided (e.g. for DEPT_OFFICER or filtered view)
     if (departmentId) {
-      whereClause.enrollments = {
-        some: {
-          scheme: {
-            departmentId: departmentId,
+      andConditions.push({
+        enrollments: {
+          some: {
+            scheme: {
+              departmentId: departmentId,
+            },
           },
         },
-      };
+      });
     }
 
-    const total = await prisma.beneficiary.count({
-      where: whereClause,
-    });
+    // Preserve base conditions for calculating status counts
+    const baseWhereClause: any = andConditions.length > 0 ? { AND: [...andConditions] } : {};
+
+    // Apply statusFilter (ALL, ACTIVE, SUSPENDED, ARCHIVED)
+    const statusConditions: any[] = [];
+    if (statusFilter === "ACTIVE") {
+      statusConditions.push({
+        isArchived: false,
+        enrollments: {
+          some: {
+            ...(departmentId ? { scheme: { departmentId } } : {}),
+            status: "Active",
+            isArchived: false,
+          },
+        },
+      });
+    } else if (statusFilter === "SUSPENDED") {
+      statusConditions.push({
+        enrollments: {
+          some: {
+            ...(departmentId ? { scheme: { departmentId } } : {}),
+            status: { in: ["Suspended", "SUSPENDED"] },
+            isArchived: false,
+          },
+        },
+      });
+    } else if (statusFilter === "ARCHIVED") {
+      statusConditions.push({
+        OR: [
+          { isArchived: true },
+          {
+            enrollments: {
+              some: {
+                ...(departmentId ? { scheme: { departmentId } } : {}),
+                OR: [{ isArchived: true }, { status: "Archived" }],
+              },
+            },
+          },
+        ],
+      });
+    }
+
+    const whereClause: any = statusConditions.length > 0
+      ? { AND: [...andConditions, ...statusConditions] }
+      : (andConditions.length > 0 ? { AND: andConditions } : {});
+
+    // Calculate Status Card Counts in parallel
+    const [countAll, countActive, countSuspended, countArchived, total] = await Promise.all([
+      prisma.beneficiary.count({ where: baseWhereClause }),
+      prisma.beneficiary.count({
+        where: {
+          ...baseWhereClause,
+          AND: [
+            ...(baseWhereClause.AND || []),
+            {
+              isArchived: false,
+              enrollments: {
+                some: {
+                  ...(departmentId ? { scheme: { departmentId } } : {}),
+                  status: "Active",
+                  isArchived: false,
+                },
+              },
+            },
+          ],
+        },
+      }),
+      prisma.beneficiary.count({
+        where: {
+          ...baseWhereClause,
+          AND: [
+            ...(baseWhereClause.AND || []),
+            {
+              enrollments: {
+                some: {
+                  ...(departmentId ? { scheme: { departmentId } } : {}),
+                  status: { in: ["Suspended", "SUSPENDED"] },
+                  isArchived: false,
+                },
+              },
+            },
+          ],
+        },
+      }),
+      prisma.beneficiary.count({
+        where: {
+          ...baseWhereClause,
+          AND: [
+            ...(baseWhereClause.AND || []),
+            {
+              OR: [
+                { isArchived: true },
+                {
+                  enrollments: {
+                    some: {
+                      ...(departmentId ? { scheme: { departmentId } } : {}),
+                      OR: [{ isArchived: true }, { status: "Archived" }],
+                    },
+                  },
+                },
+              ],
+            },
+          ],
+        },
+      }),
+      prisma.beneficiary.count({
+        where: whereClause,
+      }),
+    ]);
 
     const totalPages = Math.max(1, Math.ceil(total / limit));
     const effectivePage = Math.min(page, totalPages);
@@ -197,6 +308,12 @@ export async function GET(request: Request) {
       success: true,
       count: beneficiaries.length,
       total,
+      statusCounts: {
+        all: countAll,
+        active: countActive,
+        suspended: countSuspended,
+        archived: countArchived,
+      },
       pagination: {
         total,
         page: effectivePage,
