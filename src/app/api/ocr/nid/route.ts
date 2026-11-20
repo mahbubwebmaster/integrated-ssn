@@ -111,11 +111,11 @@ Return ONLY valid JSON matching this structure without Markdown formatting or ex
 If any field cannot be found or is unclear, return empty string "" for that field.`;
 
     const modelsToTry = [
+      "gemini-3.8-flash",
+      "gemini-3.5-flash",
+      "gemini-3.5-flash-lite",
+      "gemini-flash-latest",
       "gemini-2.5-flash",
-      "gemini-2.0-flash",
-      "gemini-1.5-flash",
-      "gemini-1.5-flash-latest",
-      "gemini-2.5-pro",
     ];
     let rawText = "";
     const errors: string[] = [];
@@ -132,7 +132,10 @@ If any field cannot be found or is unclear, return empty string "" for that fiel
           `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey.trim()}`,
           {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
+            headers: {
+              "Content-Type": "application/json",
+              "x-goog-api-key": apiKey.trim(),
+            },
             body: JSON.stringify({
               contents: [
                 {
