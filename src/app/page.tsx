@@ -551,12 +551,26 @@ export default function ExecutiveDashboard() {
     "#ec4899",
   ];
 
-  // Subtitle: strictly Upazila name with "উপজেলা" (without "প্রশাসন"), e.g. "কলমাকান্দা উপজেলা"
-  const currentUpazilaDisplay = selectedUpazila
+  // Jurisdiction Display:
+  // If District Admin or Super Admin: strictly show District level ("জেলা প্রশাসন, নেত্রকোণা" / "নেত্রকোণা জেলা"), unless specific upazila drilldown is selected
+  // If Upazila-scoped user: strictly show their specific Upazila (e.g. "কলমাকান্দা উপজেলা", "দুর্গাপুর উপজেলা")
+  const isDistrictOrSuper = isSuperAdmin || currentUser.role === "DISTRICT_ADMIN";
+  const districtNameDisplay = language === "bn" ? "জেলা প্রশাসন, নেত্রকোণা" : "District Administration, Netrokona";
+
+  const hasSpecificSelectedUpazila = Boolean(
+    selectedUpazila &&
+    selectedUpazila !== "all" &&
+    selectedUpazila !== "সমগ্র জেলা" &&
+    selectedUpazila !== "সমগ্র নেত্রকোণা জেলা"
+  );
+
+  const currentUpazilaDisplay = hasSpecificSelectedUpazila
     ? (selectedUpazila.includes("উপজেলা") ? selectedUpazila : `${selectedUpazila} উপজেলা`)
+    : isDistrictOrSuper
+    ? districtNameDisplay
     : currentUser.upazilaName
     ? (currentUser.upazilaName.includes("উপজেলা") ? currentUser.upazilaName : `${currentUser.upazilaName} উপজেলা`)
-    : (language === "bn" ? "কলমাকান্দা উপজেলা" : "Kalmakanda Upazila");
+    : districtNameDisplay;
 
   return (
     <div className="min-h-screen bg-slate-50 py-6 px-3 sm:px-6 lg:px-8 print:p-0 print:bg-white w-full max-w-full min-w-0 overflow-x-clip">
@@ -565,7 +579,9 @@ export default function ExecutiveDashboard() {
         <div className="hidden print:block text-center border-b-2 border-slate-900 pb-4 mb-6">
           <h1 className="text-xl font-bold uppercase tracking-wider text-slate-900">
             {language === "bn"
-              ? `গণপ্রজাতন্ত্রী বাংলাদেশ সরকার • জেলা প্রশাসন, নেত্রকোণা • ${currentUpazilaDisplay}`
+              ? (isDistrictOrSuper && !hasSpecificSelectedUpazila
+                  ? "গণপ্রজাতন্ত্রী বাংলাদেশ সরকার • জেলা প্রশাসন, নেত্রকোণা"
+                  : `গণপ্রজাতন্ত্রী বাংলাদেশ সরকার • জেলা প্রশাসন, নেত্রকোণা • ${currentUpazilaDisplay}`)
               : `${t.common.govtTopBar} • ${currentUpazilaDisplay}`}
           </h1>
           <h2 className="text-base font-semibold text-slate-800 mt-1">

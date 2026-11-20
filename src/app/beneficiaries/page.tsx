@@ -1076,13 +1076,21 @@ export default function BeneficiariesPage() {
           <div>
             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-50 border border-emerald-200 text-xs font-semibold text-emerald-800 mb-2">
               <Users className="w-3.5 h-3.5 text-emerald-600" />
-              {t.beneficiariesPage.badge}
+              {isDistrictAdmin || isSuperAdmin
+                ? (language === "bn" ? "জেলা সামাজিক নিরাপত্তা ডাটাবেস (নেত্রকোণা)" : "District Social Safety Net Database")
+                : (language === "bn" ? `${currentUser.upazilaName || "উপজেলা"} সামাজিক নিরাপত্তা ডাটাবেস` : `${currentUser.upazilaName || "Upazila"} Social Safety Net Database`)}
             </div>
             <h1 className="text-2xl font-bold text-slate-900 tracking-tight">
               {t.beneficiariesPage.title}
             </h1>
             <p className="text-sm text-slate-500 mt-1">
-              {t.beneficiariesPage.subtitle}
+              {isDistrictAdmin || isSuperAdmin
+                ? (language === "bn"
+                    ? "নেত্রকোণা জেলার সকল উপজেলার ভাতাভোগী ও খাদ্য সহায়তা প্রাপ্ত নাগরিকদের সামগ্রিক তালিকা"
+                    : "Central registry of beneficiaries across all upazilas in Netrokona district")
+                : (language === "bn"
+                    ? `${currentUser.upazilaName || "উপজেলা"}-এর সকল ইউনিয়নের ভাতাভোগী ও খাদ্য সহায়তা প্রাপ্ত নাগরিকদের সামগ্রিক তালিকা`
+                    : `Registry of beneficiaries across all unions in ${currentUser.upazilaName || "the upazila"}`)}
             </p>
           </div>
 

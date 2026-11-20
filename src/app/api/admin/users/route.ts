@@ -56,7 +56,7 @@ export async function GET(request: Request) {
     const exportAll = searchParams.get("all") === "true";
 
     // If UPAZILA_ADMIN, scope to their upazila
-    const userUpazila = (session.user as any).upazilaName;
+    const userUpazila = currentUser.upazilaName;
     if (isUpazila && userUpazila) {
       upazilaParam = userUpazila;
     }

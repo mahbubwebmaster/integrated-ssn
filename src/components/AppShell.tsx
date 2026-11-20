@@ -46,7 +46,9 @@ export function AppShell({ children }: AppShellProps) {
     currentUser.role === "DEPT_OFFICER" || currentUser.role === "DEPARTMENT_OFFICER";
   const isUnionViewer = currentUser.role === "UNION_VIEWER";
   const isSuperAdmin = currentUser.role === "SUPER_ADMIN";
+  const isDistrictAdmin = currentUser.role === "DISTRICT_ADMIN";
   const isUpazilaAdmin = currentUser.role === "UPAZILA_ADMIN";
+  const isDistrictOrSuper = isSuperAdmin || isDistrictAdmin;
 
   // Fetch pending removal requests count for live badge
   useEffect(() => {
@@ -167,10 +169,14 @@ export function AppShell({ children }: AppShellProps) {
     },
   ];
 
-  // Upazila Subtitle: strictly Upazila name with "উপজেলা" (without "প্রশাসন"), e.g. "কলমাকান্দা উপজেলা"
-  const currentUpazilaTitle = currentUser.upazilaName
+  // Jurisdiction Title:
+  // If District Admin or Super Admin: strictly show District level (e.g. "নেত্রকোণা জেলা")
+  // If Upazila-scoped user (Upazila Admin, Dept Officer, Union Viewer): show their specific Upazila (e.g. "কলমাকান্দা উপজেলা")
+  const currentJurisdictionTitle = isDistrictOrSuper
+    ? (language === "bn" ? "নেত্রকোণা জেলা" : "Netrokona District")
+    : currentUser.upazilaName
     ? (currentUser.upazilaName.includes("উপজেলা") ? currentUser.upazilaName : `${currentUser.upazilaName} উপজেলা`)
-    : (language === "bn" ? "কলমাকান্দা উপজেলা" : "Kalmakanda Upazila");
+    : (language === "bn" ? "নেত্রকোণা জেলা" : "Netrokona District");
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col lg:flex-row w-full max-w-full overflow-x-hidden">
@@ -189,7 +195,7 @@ export function AppShell({ children }: AppShellProps) {
                 <span>{language === "bn" ? "সমন্বিত সুবিধাভোগী ব্যবস্থাপনা" : "Integrated Beneficiary Management"}</span>
               </div>
               <p className="text-[11px] text-emerald-400 truncate mt-0.5 font-medium">
-                {currentUpazilaTitle}
+                {currentJurisdictionTitle}
               </p>
             </div>
           </Link>
@@ -326,8 +332,12 @@ export function AppShell({ children }: AppShellProps) {
             <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shrink-0"></span>
             <span className="truncate">
               {language === "bn"
-                ? `গণপ্রজাতন্ত্রী বাংলাদেশ সরকার • জেলা প্রশাসন, নেত্রকোণা • ${currentUpazilaTitle}`
-                : `Govt. of Bangladesh • Netrokona • ${currentUpazilaTitle}`}
+                ? (isDistrictOrSuper
+                    ? "গণপ্রজাতন্ত্রী বাংলাদেশ সরকার • জেলা প্রশাসন, নেত্রকোণা"
+                    : `গণপ্রজাতন্ত্রী বাংলাদেশ সরকার • জেলা প্রশাসন, নেত্রকোণা • ${currentJurisdictionTitle}`)
+                : (isDistrictOrSuper
+                    ? "Govt. of Bangladesh • Netrokona District"
+                    : `Govt. of Bangladesh • Netrokona • ${currentJurisdictionTitle}`)}
             </span>
           </div>
           <div className="flex items-center gap-1 shrink-0 ml-2">
@@ -374,7 +384,7 @@ export function AppShell({ children }: AppShellProps) {
                   {language === "bn" ? "সমন্বিত সুবিধাভোগী ব্যবস্থাপনা" : "Integrated Beneficiary Management"}
                 </div>
                 <div className="text-[10px] text-emerald-400 truncate font-medium">
-                  {currentUpazilaTitle}
+                  {currentJurisdictionTitle}
                 </div>
               </div>
             </Link>
@@ -388,6 +398,8 @@ export function AppShell({ children }: AppShellProps) {
               className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold border transition-all shadow-xs ${
                 isSuperAdmin
                   ? "bg-purple-950 text-purple-200 border-purple-500/60"
+                  : isDistrictAdmin
+                  ? "bg-indigo-950 text-indigo-200 border-indigo-500/60"
                   : isDeptOfficer
                   ? "bg-blue-950 text-blue-200 border-blue-500/60"
                   : "bg-emerald-950 text-emerald-200 border-emerald-500/60"
@@ -436,7 +448,7 @@ export function AppShell({ children }: AppShellProps) {
                     {language === "bn" ? "সমন্বিত সুবিধাভোগী ব্যবস্থাপনা" : "Integrated Beneficiary Management"}
                   </div>
                   <div className="text-[10px] text-emerald-400 font-semibold">
-                    {currentUpazilaTitle}
+                    {currentJurisdictionTitle}
                   </div>
                 </div>
               </div>
@@ -572,10 +584,14 @@ export function AppShell({ children }: AppShellProps) {
                 ? "গণপ্রজাতন্ত্রী বাংলাদেশ সরকার • জেলা প্রশাসন, নেত্রকোণা"
                 : "Government of the People's Republic of Bangladesh • District Administration, Netrokona"}
             </span>
-            <span className="text-slate-600">•</span>
-            <span className="text-emerald-400 font-bold">
-              {currentUpazilaTitle}
-            </span>
+            {!isDistrictOrSuper && currentJurisdictionTitle && (
+              <>
+                <span className="text-slate-600">•</span>
+                <span className="text-emerald-400 font-bold">
+                  {currentJurisdictionTitle}
+                </span>
+              </>
+            )}
           </div>
 
           <div className="flex items-center gap-3">
@@ -584,6 +600,8 @@ export function AppShell({ children }: AppShellProps) {
               className={`px-3 py-1 rounded-full text-[11px] font-bold border ${
                 isSuperAdmin
                   ? "bg-purple-950/80 text-purple-200 border-purple-500/60"
+                  : isDistrictAdmin
+                  ? "bg-indigo-950/80 text-indigo-200 border-indigo-500/60"
                   : isDeptOfficer
                   ? "bg-blue-950/80 text-blue-200 border-blue-500/60"
                   : "bg-emerald-950/80 text-emerald-200 border-emerald-500/60"

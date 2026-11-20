@@ -235,9 +235,11 @@ export function Navbar() {
                   {language === "bn" ? "সমন্বিত সুবিধাভোগী ব্যবস্থাপনা" : "Integrated Beneficiary Management"}
                 </div>
                 <div className="text-xs text-emerald-400 font-medium">
-                  {currentUser.upazilaName
+                  {currentUser.role === "SUPER_ADMIN" || currentUser.role === "DISTRICT_ADMIN"
+                    ? (language === "bn" ? "নেত্রকোণা জেলা" : "Netrokona District")
+                    : currentUser.upazilaName
                     ? (currentUser.upazilaName.includes("উপজেলা") ? currentUser.upazilaName : `${currentUser.upazilaName} উপজেলা`)
-                    : (language === "bn" ? "কলমাকান্দা উপজেলা" : "Kalmakanda Upazila")}
+                    : (language === "bn" ? "নেত্রকোণা জেলা" : "Netrokona District")}
                 </div>
                 <div className="text-xs text-slate-400 font-normal">
                   {currentUser.designation ? (
