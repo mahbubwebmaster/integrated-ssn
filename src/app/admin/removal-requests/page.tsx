@@ -119,8 +119,18 @@ export default function RemovalRequestsApprovalInboxPage() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [selectedUpazila, setSelectedUpazila] = useState<string>(currentUser.upazilaName || "ALL");
-  const [selectedStatusTab, setSelectedStatusTab] = useState<"ALL" | "PENDING" | "APPROVED" | "REJECTED">("ALL");
+  const [selectedStatusTab, setSelectedStatusTab] = useState<"PENDING" | "APPROVED" | "REJECTED" | "ALL">("PENDING");
   const [selectedDeptId, setSelectedDeptId] = useState<string>("ALL");
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const urlParams = new URLSearchParams(window.location.search);
+      const s = urlParams.get("status")?.toUpperCase();
+      if (s === "PENDING" || s === "APPROVED" || s === "REJECTED" || s === "ALL") {
+        setSelectedStatusTab(s as any);
+      }
+    }
+  }, []);
 
   useEffect(() => {
     if (currentUser.upazilaName) {
@@ -361,18 +371,18 @@ export default function RemovalRequestsApprovalInboxPage() {
 
         {/* KPI Cards */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200 shadow-xs space-y-1">
+          <div
+            onClick={() => setSelectedStatusTab("PENDING")}
+            className={`p-4 sm:p-5 rounded-2xl border shadow-xs space-y-1 cursor-pointer transition-all ${
+              selectedStatusTab === "PENDING"
+                ? "bg-amber-100/90 border-amber-500 ring-2 ring-amber-500/20 shadow-md"
+                : "bg-amber-50/60 border-amber-300 hover:bg-amber-100/60"
+            }`}
+          >
             <div className="flex items-center justify-between">
-              <span className="text-xs font-bold text-slate-500">{language === "bn" ? "মোট আবেদন" : "Total Requests"}</span>
-              <Layers className="w-4 h-4 text-slate-400" />
-            </div>
-            <div className="text-2xl font-black text-slate-900">{formatNumber(summary.total, language)}</div>
-            <div className="text-[11px] text-slate-400">{language === "bn" ? "সকল দপ্তর থেকে জমা" : "From all departments"}</div>
-          </div>
-
-          <div className="bg-amber-50/60 p-4 sm:p-5 rounded-2xl border border-amber-300 shadow-xs space-y-1">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-bold text-amber-900">{language === "bn" ? "অপেক্ষমান অনুমোদন" : "Pending Decisions"}</span>
+              <span className="text-xs font-bold text-amber-900">
+                {language === "bn" ? "অপেক্ষমান আবেদন" : "Pending Requests"}
+              </span>
               <Clock className="w-4 h-4 text-amber-600 animate-pulse" />
             </div>
             <div className="text-2xl font-black text-amber-900">{formatNumber(summary.pending, language)}</div>
@@ -381,9 +391,18 @@ export default function RemovalRequestsApprovalInboxPage() {
             </div>
           </div>
 
-          <div className="bg-emerald-50/60 p-4 sm:p-5 rounded-2xl border border-emerald-300 shadow-xs space-y-1">
+          <div
+            onClick={() => setSelectedStatusTab("APPROVED")}
+            className={`p-4 sm:p-5 rounded-2xl border shadow-xs space-y-1 cursor-pointer transition-all ${
+              selectedStatusTab === "APPROVED"
+                ? "bg-emerald-100/90 border-emerald-500 ring-2 ring-emerald-500/20 shadow-md"
+                : "bg-emerald-50/60 border-emerald-300 hover:bg-emerald-100/60"
+            }`}
+          >
             <div className="flex items-center justify-between">
-              <span className="text-xs font-bold text-emerald-900">{language === "bn" ? "অনুমোদিত ও বাতিলকৃত" : "Approved & Suspended"}</span>
+              <span className="text-xs font-bold text-emerald-900">
+                {language === "bn" ? "অনুমোদিত ও বাতিলকৃত" : "Approved & Suspended"}
+              </span>
               <CheckCircle2 className="w-4 h-4 text-emerald-600" />
             </div>
             <div className="text-2xl font-black text-emerald-900">{formatNumber(summary.approved, language)}</div>
@@ -392,9 +411,18 @@ export default function RemovalRequestsApprovalInboxPage() {
             </div>
           </div>
 
-          <div className="bg-red-50/60 p-4 sm:p-5 rounded-2xl border border-red-300 shadow-xs space-y-1">
+          <div
+            onClick={() => setSelectedStatusTab("REJECTED")}
+            className={`p-4 sm:p-5 rounded-2xl border shadow-xs space-y-1 cursor-pointer transition-all ${
+              selectedStatusTab === "REJECTED"
+                ? "bg-red-100/90 border-red-500 ring-2 ring-red-500/20 shadow-md"
+                : "bg-red-50/60 border-red-300 hover:bg-red-100/60"
+            }`}
+          >
             <div className="flex items-center justify-between">
-              <span className="text-xs font-bold text-red-900">{language === "bn" ? "প্রত্যাখ্যাত আবেদন" : "Rejected Requests"}</span>
+              <span className="text-xs font-bold text-red-900">
+                {language === "bn" ? "প্রত্যাখ্যাত আবেদন" : "Rejected Requests"}
+              </span>
               <XCircle className="w-4 h-4 text-red-600" />
             </div>
             <div className="text-2xl font-black text-red-900">{formatNumber(summary.rejected, language)}</div>
@@ -402,50 +430,74 @@ export default function RemovalRequestsApprovalInboxPage() {
               {language === "bn" ? "ভাতা বহাল রাখা হয়েছে" : "Benefit kept active"}
             </div>
           </div>
+
+          <div
+            onClick={() => setSelectedStatusTab("ALL")}
+            className={`p-4 sm:p-5 rounded-2xl border shadow-xs space-y-1 cursor-pointer transition-all ${
+              selectedStatusTab === "ALL"
+                ? "bg-slate-100 border-slate-500 ring-2 ring-slate-500/20 shadow-md"
+                : "bg-white border-slate-200 hover:bg-slate-50"
+            }`}
+          >
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold text-slate-500">
+                {language === "bn" ? "সকল আবেদন" : "All Requests"}
+              </span>
+              <Layers className="w-4 h-4 text-slate-400" />
+            </div>
+            <div className="text-2xl font-black text-slate-900">{formatNumber(summary.total, language)}</div>
+            <div className="text-[11px] text-slate-400">
+              {language === "bn" ? "সকল দপ্তর থেকে জমা" : "From all departments"}
+            </div>
+          </div>
         </div>
 
         {/* Filter Toolbar */}
         <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs space-y-4">
-          {/* Status Tabs */}
+          {/* Status Tabs - Pending is FIRST and DEFAULT, All Requests is LAST */}
           <div className="flex items-center bg-slate-100 p-1 rounded-xl gap-1 shrink-0 overflow-x-auto">
-            <button
-              onClick={() => setSelectedStatusTab("ALL")}
-              className={`min-h-[38px] px-3.5 py-1.5 rounded-lg font-bold transition-all whitespace-nowrap cursor-pointer ${
-                selectedStatusTab === "ALL" ? "bg-white text-slate-900 shadow-xs" : "text-slate-600 hover:text-slate-900"
-              }`}
-            >
-              {language === "bn" ? "সকল আবেদন" : "All"} ({formatNumber(summary.total, language)})
-            </button>
             <button
               onClick={() => setSelectedStatusTab("PENDING")}
               className={`min-h-[38px] px-3.5 py-1.5 rounded-lg font-bold transition-all flex items-center gap-1.5 whitespace-nowrap cursor-pointer ${
                 selectedStatusTab === "PENDING"
                   ? "bg-amber-600 text-white shadow-xs"
-                  : "text-amber-800 hover:text-amber-950"
+                  : "text-amber-800 hover:text-amber-950 hover:bg-white/50"
               }`}
             >
-              <Clock className="w-3 h-3" />
-              {language === "bn" ? "অপেক্ষমান" : "Pending"} ({formatNumber(summary.pending, language)})
+              <Clock className="w-3.5 h-3.5" />
+              {language === "bn" ? "অপেক্ষমান আবেদন" : "Pending"} ({formatNumber(summary.pending, language)})
             </button>
             <button
               onClick={() => setSelectedStatusTab("APPROVED")}
               className={`min-h-[38px] px-3.5 py-1.5 rounded-lg font-bold transition-all flex items-center gap-1.5 whitespace-nowrap cursor-pointer ${
                 selectedStatusTab === "APPROVED"
                   ? "bg-emerald-700 text-white shadow-xs"
-                  : "text-emerald-800 hover:text-emerald-950"
+                  : "text-emerald-800 hover:text-emerald-950 hover:bg-white/50"
               }`}
             >
-              <Check className="w-3 h-3" />
+              <Check className="w-3.5 h-3.5" />
               {language === "bn" ? "অনুমোদিত" : "Approved"} ({formatNumber(summary.approved, language)})
             </button>
             <button
               onClick={() => setSelectedStatusTab("REJECTED")}
               className={`min-h-[38px] px-3.5 py-1.5 rounded-lg font-bold transition-all flex items-center gap-1.5 whitespace-nowrap cursor-pointer ${
-                selectedStatusTab === "REJECTED" ? "bg-red-700 text-white shadow-xs" : "text-red-700 hover:text-red-950"
+                selectedStatusTab === "REJECTED"
+                  ? "bg-red-700 text-white shadow-xs"
+                  : "text-red-700 hover:text-red-950 hover:bg-white/50"
               }`}
             >
-              <X className="w-3 h-3" />
+              <X className="w-3.5 h-3.5" />
               {language === "bn" ? "প্রত্যাখ্যাত" : "Rejected"} ({formatNumber(summary.rejected, language)})
+            </button>
+            <button
+              onClick={() => setSelectedStatusTab("ALL")}
+              className={`min-h-[38px] px-3.5 py-1.5 rounded-lg font-bold transition-all whitespace-nowrap cursor-pointer ${
+                selectedStatusTab === "ALL"
+                  ? "bg-white text-slate-900 shadow-xs border border-slate-200"
+                  : "text-slate-600 hover:text-slate-900 hover:bg-white/50"
+              }`}
+            >
+              {language === "bn" ? "সকল আবেদন" : "All Requests"} ({formatNumber(summary.total, language)})
             </button>
           </div>
 
