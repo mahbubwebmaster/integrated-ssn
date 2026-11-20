@@ -303,7 +303,7 @@ export async function POST(request: Request) {
                   schemeId: schemeId.trim(),
                   status: "Active",
                   cardNumber: cardNumber ? cardNumber.trim() : null,
-                  startDate: new Date(),
+                  startDate: body.startDate ? new Date(body.startDate) : new Date(),
                   uploadedBatchId: `MANUAL-${new Date().toISOString().split("T")[0]}`,
                 },
               },
@@ -446,14 +446,21 @@ export async function PATCH(request: Request) {
       },
     });
 
-    // Optionally update enrollment card number
-    if (enrollmentId && cardNumber !== undefined) {
-      await prisma.enrollment.update({
-        where: { id: enrollmentId },
-        data: {
-          cardNumber: cardNumber ? cardNumber.trim() : null,
-        },
-      });
+    // Optionally update enrollment card number and start date
+    if (enrollmentId) {
+      const enrollmentUpdate: any = {};
+      if (cardNumber !== undefined) {
+        enrollmentUpdate.cardNumber = cardNumber ? cardNumber.trim() : null;
+      }
+      if (body.startDate !== undefined && body.startDate) {
+        enrollmentUpdate.startDate = new Date(body.startDate);
+      }
+      if (Object.keys(enrollmentUpdate).length > 0) {
+        await prisma.enrollment.update({
+          where: { id: enrollmentId },
+          data: enrollmentUpdate,
+        });
+      }
     }
 
     return NextResponse.json({

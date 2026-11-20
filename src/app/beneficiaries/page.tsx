@@ -32,6 +32,11 @@ import {
   ChevronRight,
   ChevronsLeft,
   ChevronsRight,
+  Camera,
+  ScanLine,
+  Sparkles,
+  UploadCloud,
+  Key,
 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { useLanguage } from "@/context/LanguageContext";
@@ -134,9 +139,110 @@ export default function BeneficiariesPage() {
     wardNo: "",
     schemeId: "",
     cardNumber: "",
+    startDate: "",
   });
   const [createSubmitting, setCreateSubmitting] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
+
+  // NID OCR Scanning State
+  const [nidImagePreview, setNidImagePreview] = useState<string | null>(null);
+  const [nidScanning, setNidScanning] = useState(false);
+  const [nidScanSuccess, setNidScanSuccess] = useState(false);
+  const [nidScanError, setNidScanError] = useState<string | null>(null);
+  const [geminiApiKey, setGeminiApiKey] = useState("");
+  const [showApiKeyInput, setShowApiKeyInput] = useState(false);
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const savedKey = localStorage.getItem("ssnp_gemini_api_key") || "";
+      if (savedKey) setGeminiApiKey(savedKey);
+    }
+  }, []);
+
+  const handleApiKeyChange = (val: string) => {
+    setGeminiApiKey(val);
+    if (typeof window !== "undefined") {
+      localStorage.setItem("ssnp_gemini_api_key", val.trim());
+    }
+  };
+
+  const handleScanNidImage = async (fileOrDemo?: File | "demo") => {
+    try {
+      setNidScanning(true);
+      setNidScanError(null);
+      setNidScanSuccess(false);
+
+      if (fileOrDemo === "demo") {
+        const res = await fetch("/api/ocr/nid", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ isDemo: true }),
+        });
+        const json = await res.json();
+        if (json.success && json.data) {
+          applyExtractedNidData(json.data);
+          setNidScanSuccess(true);
+        } else {
+          setNidScanError(json.error || "স্ক্যান ব্যর্থ হয়েছে");
+        }
+        return;
+      }
+
+      if (!fileOrDemo) return;
+
+      const reader = new FileReader();
+      const base64Promise = new Promise<string>((resolve, reject) => {
+        reader.onload = () => resolve(reader.result as string);
+        reader.onerror = reject;
+      });
+      reader.readAsDataURL(fileOrDemo);
+      const dataUrl = await base64Promise;
+      setNidImagePreview(dataUrl);
+
+      const res = await fetch("/api/ocr/nid", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          imageBase64: dataUrl,
+          mimeType: fileOrDemo.type || "image/jpeg",
+          apiKey: geminiApiKey.trim() || undefined,
+        }),
+      });
+
+      const json = await res.json();
+      if (json.success && json.data) {
+        applyExtractedNidData(json.data);
+        setNidScanSuccess(true);
+      } else {
+        if (json.requiresApiKey) {
+          setShowApiKeyInput(true);
+        }
+        setNidScanError(json.message || json.error || "এনআইডি তথ্য সংগ্রহ করা সম্ভব হয়নি।");
+      }
+    } catch (err: any) {
+      console.error(err);
+      setNidScanError("ছবি প্রসেসিং বা সংযোগে ত্রুটি হয়েছে।");
+    } finally {
+      setNidScanning(false);
+    }
+  };
+
+  const applyExtractedNidData = (data: {
+    nameBn?: string;
+    nameEn?: string;
+    fatherName?: string;
+    dateOfBirth?: string;
+    nid?: string;
+  }) => {
+    setCreateForm((prev) => ({
+      ...prev,
+      nameBn: data.nameBn || prev.nameBn,
+      nameEn: data.nameEn || prev.nameEn,
+      fatherName: data.fatherName || prev.fatherName,
+      dateOfBirth: data.dateOfBirth || prev.dateOfBirth,
+      nid: data.nid || prev.nid,
+    }));
+  };
 
   // Edit Modal State
   const [editingBeneficiary, setEditingBeneficiary] = useState<Beneficiary | null>(null);
@@ -155,6 +261,7 @@ export default function BeneficiariesPage() {
     wardNo: "",
     cardNumber: "",
     enrollmentId: "",
+    startDate: "",
   });
   const [editSubmitting, setEditSubmitting] = useState(false);
   const [editError, setEditError] = useState<string | null>(null);
@@ -184,6 +291,10 @@ export default function BeneficiariesPage() {
 
   useEffect(() => {
     setTodayString(new Date().toLocaleDateString(language === "bn" ? "bn-BD" : "en-US"));
+    setCreateForm((prev) => ({
+      ...prev,
+      startDate: prev.startDate || new Date().toISOString().split("T")[0],
+    }));
   }, [language]);
 
   // Helper to calculate age from DOB
@@ -450,6 +561,10 @@ export default function BeneficiariesPage() {
       ? new Date(b.dateOfBirth).toISOString().split("T")[0]
       : "";
 
+    const startDateFormatted = relevantEnrollment?.startDate
+      ? new Date(relevantEnrollment.startDate).toISOString().split("T")[0]
+      : "";
+
     setEditForm({
       nameBn: b.nameBn || b.fullName || "",
       nameEn: b.nameEn || "",
@@ -465,6 +580,7 @@ export default function BeneficiariesPage() {
       wardNo: b.wardNo || "",
       cardNumber: relevantEnrollment?.cardNumber || "",
       enrollmentId: relevantEnrollment?.id || "",
+      startDate: startDateFormatted,
     });
     setEditError(null);
     setEditingBeneficiary(b);
@@ -498,6 +614,7 @@ export default function BeneficiariesPage() {
           wardNo: editForm.wardNo.trim(),
           enrollmentId: editForm.enrollmentId || undefined,
           cardNumber: editForm.cardNumber.trim() || null,
+          startDate: editForm.startDate || undefined,
         }),
       });
 
@@ -543,7 +660,12 @@ export default function BeneficiariesPage() {
       wardNo: "",
       schemeId: deptSchemes[0]?.id || schemes[0]?.id || "",
       cardNumber: "",
+      startDate: new Date().toISOString().split("T")[0],
     });
+    setNidImagePreview(null);
+    setNidScanning(false);
+    setNidScanSuccess(false);
+    setNidScanError(null);
     setCreateError(null);
     setIsCreateOpen(true);
   };
@@ -573,6 +695,7 @@ export default function BeneficiariesPage() {
           wardNo: createForm.wardNo.trim(),
           schemeId: createForm.schemeId || null,
           cardNumber: createForm.cardNumber.trim() || null,
+          startDate: createForm.startDate || new Date().toISOString().split("T")[0],
         }),
       });
 
@@ -1315,6 +1438,160 @@ export default function BeneficiariesPage() {
                 </div>
               )}
 
+              {/* Smart NID Card Scanner Banner & Uploader */}
+              <div className="rounded-2xl border border-emerald-200 bg-gradient-to-r from-emerald-50/90 via-teal-50/70 to-blue-50/90 p-3.5 sm:p-4 shadow-xs space-y-3">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-9 h-9 rounded-xl bg-emerald-600 text-white flex items-center justify-center shrink-0 shadow-xs">
+                      <Camera className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h4 className="text-xs sm:text-sm font-bold text-slate-900 flex items-center gap-1.5">
+                        {language === "bn" ? "স্মার্ট এনআইডি স্ক্যানার (NID OCR)" : "Smart NID OCR Scanner"}
+                        <span className="bg-emerald-100 text-emerald-800 text-[10px] font-bold px-2 py-0.5 rounded-full border border-emerald-300">
+                          AI Auto-fill
+                        </span>
+                      </h4>
+                      <p className="text-[11px] text-slate-600">
+                        {language === "bn"
+                          ? "এনআইডি কার্ডের সামনের পাতার ছবি আপলোড করলে নাম, পিতার নাম, জন্ম তারিখ ও নম্বর স্বয়ংক্রিয়ভাবে পূরণ হবে।"
+                          : "Upload NID front page to automatically extract and fill beneficiary details."}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-1.5 shrink-0 self-end sm:self-center">
+                    <button
+                      type="button"
+                      onClick={() => handleScanNidImage("demo")}
+                      disabled={nidScanning}
+                      className="px-2.5 py-1.5 rounded-lg bg-white border border-slate-300 hover:bg-slate-100 text-slate-700 text-[11px] font-semibold flex items-center gap-1 transition-colors cursor-pointer disabled:opacity-50"
+                      title={language === "bn" ? "ডেমো কার্ড দিয়ে পরীক্ষা করুন" : "Test with sample NID data"}
+                    >
+                      <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+                      <span>{language === "bn" ? "ডেমো টেস্ট" : "Demo Test"}</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setShowApiKeyInput(!showApiKeyInput)}
+                      className="p-1.5 rounded-lg text-slate-500 hover:text-slate-800 hover:bg-white/80 transition-colors cursor-pointer"
+                      title={language === "bn" ? "API Key সেটিংস" : "API Key Settings"}
+                    >
+                      <Key className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+
+                {/* API Key Drawer (collapsible) */}
+                {showApiKeyInput && (
+                  <div className="p-2.5 bg-white/90 rounded-xl border border-slate-200 text-xs space-y-1.5 animate-in fade-in duration-150">
+                    <div className="flex items-center justify-between">
+                      <span className="font-semibold text-slate-700 text-[11px]">
+                        {language === "bn" ? "Gemini API Key (ঐচ্ছিক / বিনামূল্যে):" : "Gemini API Key (Optional):"}
+                      </span>
+                      <a
+                        href="https://aistudio.google.com/apikey"
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-emerald-700 hover:underline text-[10px] font-medium"
+                      >
+                        {language === "bn" ? "কী সংগ্রহ করুন ↗" : "Get Free Key ↗"}
+                      </a>
+                    </div>
+                    <input
+                      type="password"
+                      value={geminiApiKey}
+                      onChange={(e) => handleApiKeyChange(e.target.value)}
+                      placeholder="AIzaSy..."
+                      className="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 text-xs font-mono focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                    />
+                    <p className="text-[10px] text-slate-500">
+                      {language === "bn"
+                        ? "কী আপনার ব্রাউজারে সংরক্ষিত থাকবে অথবা সার্ভারের .env ফাইলে GEMINI_API_KEY ব্যবহার করতে পারেন।"
+                        : "Key is saved locally in browser, or configure GEMINI_API_KEY in server .env."}
+                    </p>
+                  </div>
+                )}
+
+                {/* File Upload Zone */}
+                <div className="flex flex-col sm:flex-row items-center gap-3">
+                  <label className="flex-1 w-full min-h-[44px] flex items-center justify-center gap-2 px-3 py-2 rounded-xl border-2 border-dashed border-emerald-300 bg-white/80 hover:bg-emerald-50/50 cursor-pointer transition-colors text-xs font-semibold text-emerald-800">
+                    <UploadCloud className="w-4 h-4 text-emerald-600" />
+                    <span>
+                      {nidImagePreview
+                        ? (language === "bn" ? "অন্য ছবি নির্বাচন করুন" : "Change NID Image")
+                        : (language === "bn" ? "এনআইডি কার্ডের ছবি সিলেক্ট করুন" : "Upload NID Card Photo")}
+                    </span>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) handleScanNidImage(file);
+                      }}
+                    />
+                  </label>
+
+                  {nidImagePreview && (
+                    <div className="flex items-center gap-2 shrink-0">
+                      <div className="w-11 h-9 rounded-lg border border-slate-300 overflow-hidden bg-slate-100 relative shadow-xs">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={nidImagePreview}
+                          alt="NID Preview"
+                          className="w-full h-full object-cover"
+                        />
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setNidImagePreview(null);
+                          setNidScanSuccess(false);
+                          setNidScanError(null);
+                        }}
+                        className="text-[11px] text-red-600 hover:text-red-800 font-medium cursor-pointer"
+                      >
+                        {language === "bn" ? "মুছে ফেলুন" : "Remove"}
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                {/* Scan Status / Alerts */}
+                {nidScanning && (
+                  <div className="flex items-center gap-2 p-2.5 rounded-xl bg-blue-50 border border-blue-200 text-blue-800 text-xs font-medium animate-pulse">
+                    <Loader2 className="w-4 h-4 animate-spin text-blue-600 shrink-0" />
+                    <span>
+                      {language === "bn"
+                        ? "এনআইডি কার্ড স্ক্যান ও তথ্য বিশ্লেষণ করা হচ্ছে..."
+                        : "Scanning and extracting NID card details..."}
+                    </span>
+                  </div>
+                )}
+
+                {nidScanSuccess && (
+                  <div className="flex items-center gap-2 p-2.5 rounded-xl bg-emerald-100/90 border border-emerald-300 text-emerald-900 text-xs font-medium">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-700 shrink-0" />
+                    <span>
+                      {language === "bn"
+                        ? "✓ এনআইডি স্ক্যান সফল! নাম (বাংলা ও ইংরেজি), পিতার নাম, জন্ম তারিখ এবং এনআইডি নম্বর স্বয়ংক্রিয়ভাবে ফরমে পূরণ হয়েছে।"
+                        : "✓ NID scanned successfully! Bengali/English name, father's name, DOB, and NID populated."}
+                    </span>
+                  </div>
+                )}
+
+                {nidScanError && (
+                  <div className="p-2.5 rounded-xl bg-amber-50 border border-amber-300 text-amber-900 text-xs space-y-1">
+                    <div className="flex items-center gap-1.5 font-semibold">
+                      <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
+                      <span>{language === "bn" ? "স্ক্যান করতে পারেনি:" : "Scan failed:"}</span>
+                    </div>
+                    <p className="text-[11px] text-amber-800 pl-5">{nidScanError}</p>
+                  </div>
+                )}
+              </div>
+
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 {/* Name (Bengali) */}
                 <div>
@@ -1489,23 +1766,27 @@ export default function BeneficiariesPage() {
                   <label className="block text-xs font-bold text-slate-700 mb-1">
                     {t.beneficiariesPage.fieldUnion} *
                   </label>
-                  <input
-                    type="text"
+                  <select
                     required
-                    list="create-unions-list"
                     value={createForm.unionName}
                     onChange={(e) => setCreateForm({ ...createForm, unionName: e.target.value })}
                     disabled={isUnionViewer}
-                    placeholder="ইউনিয়নের নাম লিখুন বা তালিকা থেকে বাছুন"
-                    className={`w-full px-3 py-2 rounded-xl border text-xs focus:ring-2 focus:ring-emerald-500 focus:outline-none ${
+                    className={`w-full px-3 py-2 rounded-xl border text-xs bg-white focus:ring-2 focus:ring-emerald-500 focus:outline-none ${
                       isUnionViewer ? "bg-slate-100 cursor-not-allowed border-slate-300" : "border-slate-300"
                     }`}
-                  />
-                  <datalist id="create-unions-list">
+                  >
+                    <option value="">
+                      {language === "bn" ? "-- ইউনিয়ন নির্বাচন করুন --" : "-- Select Union --"}
+                    </option>
                     {unionsForCreate.map((u) => (
-                      <option key={u} value={u} />
+                      <option key={u} value={u}>
+                        {u}
+                      </option>
                     ))}
-                  </datalist>
+                    {createForm.unionName && !unionsForCreate.includes(createForm.unionName) && (
+                      <option value={createForm.unionName}>{createForm.unionName}</option>
+                    )}
+                  </select>
                 </div>
 
                 {/* Ward */}
@@ -1557,6 +1838,25 @@ export default function BeneficiariesPage() {
                     placeholder="SSN-CARD-XXXXX"
                     className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs font-mono focus:ring-2 focus:ring-emerald-500 focus:outline-none"
                   />
+                </div>
+
+                {/* Enrollment Start Date */}
+                <div className="sm:col-span-2">
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    {language === "bn" ? "ভাতা শুরুর তারিখ (Enrollment Start Date) *" : "Enrollment Start Date *"}
+                  </label>
+                  <input
+                    type="date"
+                    required
+                    value={createForm.startDate}
+                    onChange={(e) => setCreateForm({ ...createForm, startDate: e.target.value })}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                  />
+                  <p className="text-[11px] text-slate-500 mt-1">
+                    {language === "bn"
+                      ? "📌 নীতিগত নিয়ম: ডুপ্লিকেট ভাতা সনাক্তকরণের ক্ষেত্রে যে ভাতাটি পূর্বে চালু হয়েছে সেটি মূল ভাতা (Primary Benefit) এবং পরবর্তী সময়ে নেওয়া ভাতা অতিরিক্ত (Excess) হিসেবে বিবেচিত হবে।"
+                      : "📌 Policy: Earliest enrolled scheme is the legitimate primary benefit; later enrolled schemes are deemed excess."}
+                  </p>
                 </div>
               </div>
 
@@ -1785,22 +2085,27 @@ export default function BeneficiariesPage() {
                   <label className="block text-xs font-bold text-slate-700 mb-1">
                     {t.beneficiariesPage.fieldUnion} *
                   </label>
-                  <input
-                    type="text"
+                  <select
                     required
-                    list="edit-unions-list"
                     value={editForm.unionName}
                     onChange={(e) => setEditForm({ ...editForm, unionName: e.target.value })}
                     disabled={isUnionViewer}
-                    className={`w-full px-3 py-2 rounded-xl border text-xs focus:ring-2 focus:ring-emerald-500 focus:outline-none ${
+                    className={`w-full px-3 py-2 rounded-xl border text-xs bg-white focus:ring-2 focus:ring-emerald-500 focus:outline-none ${
                       isUnionViewer ? "bg-slate-100 cursor-not-allowed border-slate-300" : "border-slate-300"
                     }`}
-                  />
-                  <datalist id="edit-unions-list">
+                  >
+                    <option value="">
+                      {language === "bn" ? "-- ইউনিয়ন নির্বাচন করুন --" : "-- Select Union --"}
+                    </option>
                     {unionsForEdit.map((u) => (
-                      <option key={u} value={u} />
+                      <option key={u} value={u}>
+                        {u}
+                      </option>
                     ))}
-                  </datalist>
+                    {editForm.unionName && !unionsForEdit.includes(editForm.unionName) && (
+                      <option value={editForm.unionName}>{editForm.unionName}</option>
+                    )}
+                  </select>
                 </div>
 
                 {/* Ward */}
@@ -1813,12 +2118,13 @@ export default function BeneficiariesPage() {
                     required
                     value={editForm.wardNo}
                     onChange={(e) => setEditForm({ ...editForm, wardNo: e.target.value })}
+                    placeholder="১ থেকে ৯"
                     className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs focus:ring-2 focus:ring-emerald-500 focus:outline-none"
                   />
                 </div>
 
                 {/* Card Number */}
-                <div className="sm:col-span-2">
+                <div>
                   <label className="block text-xs font-bold text-slate-700 mb-1">
                     {t.beneficiariesPage.fieldCardNo}
                   </label>
@@ -1828,6 +2134,19 @@ export default function BeneficiariesPage() {
                     onChange={(e) => setEditForm({ ...editForm, cardNumber: e.target.value })}
                     placeholder="SSN-CARD-XXXXX"
                     className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs font-mono focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                  />
+                </div>
+
+                {/* Enrollment Start Date */}
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    {language === "bn" ? "ভাতা শুরুর তারিখ (Enrollment Date)" : "Enrollment Start Date"}
+                  </label>
+                  <input
+                    type="date"
+                    value={editForm.startDate}
+                    onChange={(e) => setEditForm({ ...editForm, startDate: e.target.value })}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs focus:ring-2 focus:ring-emerald-500 focus:outline-none"
                   />
                 </div>
               </div>

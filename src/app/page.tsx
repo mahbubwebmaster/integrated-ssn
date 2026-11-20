@@ -193,6 +193,7 @@ export default function ExecutiveDashboard() {
     schemeName: string;
     departmentName: string;
     monthlyAmount: number;
+    beneficiaryRecord?: DuplicateBeneficiary;
   } | null>(null);
   const [suspensionReason, setSuspensionReason] = useState("");
   const [submittingRequest, setSubmittingRequest] = useState(false);
@@ -338,7 +339,8 @@ export default function ExecutiveDashboard() {
     beneficiaryName: string,
     schemeName: string,
     departmentName: string,
-    monthlyAmount: number
+    monthlyAmount: number,
+    beneficiaryRecord?: DuplicateBeneficiary
   ) => {
     setTargetForRequest({
       enrollmentId,
@@ -346,6 +348,7 @@ export default function ExecutiveDashboard() {
       schemeName,
       departmentName,
       monthlyAmount,
+      beneficiaryRecord,
     });
     setSuspensionReason(
       language === "bn"
@@ -1441,7 +1444,8 @@ export default function ExecutiveDashboard() {
                                             dup.fullName,
                                             deptTarget.schemeName,
                                             deptTarget.departmentName,
-                                            deptTarget.monthlyAmount
+                                            deptTarget.monthlyAmount,
+                                            dup
                                           );
                                         }}
                                         className="inline-flex items-center justify-center gap-1.5 px-2.5 py-2 rounded-lg bg-blue-700 hover:bg-blue-800 text-white text-[11px] font-bold shadow-xs transition-all"
@@ -1514,7 +1518,7 @@ export default function ExecutiveDashboard() {
         {/* Department Officer: Suspension Request Modal */}
         {showSuspensionModal && targetForRequest && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-3 sm:p-4">
-            <div className="bg-white rounded-2xl sm:rounded-3xl p-4 sm:p-6 w-[95vw] max-w-md max-h-[90vh] overflow-y-auto shadow-2xl border border-slate-200 space-y-4">
+            <div className="bg-white rounded-2xl sm:rounded-3xl p-4 sm:p-6 w-[95vw] max-w-lg max-h-[90vh] overflow-y-auto shadow-2xl border border-slate-200 space-y-4">
               <div className="flex items-center justify-between pb-3 border-b border-slate-100">
                 <h3 className="font-bold text-slate-900 text-base flex items-center gap-2">
                   <Clock className="w-4 h-4 text-blue-700" />
@@ -1530,14 +1534,133 @@ export default function ExecutiveDashboard() {
                 </button>
               </div>
 
+              {/* Beneficiary Header Info */}
+              <div className="p-3 bg-slate-50 rounded-2xl border border-slate-200 text-xs space-y-1">
+                <div className="flex items-center justify-between">
+                  <div>
+                    {language === "bn" ? "সুবিধাভোগী: " : "Beneficiary: "}
+                    <strong className="text-slate-900 font-bold">{targetForRequest.beneficiaryName}</strong>
+                  </div>
+                  {targetForRequest.beneficiaryRecord?.nid && (
+                    <span className="text-[10px] font-mono text-slate-600 bg-white px-2 py-0.5 rounded border border-slate-200">
+                      NID: {targetForRequest.beneficiaryRecord.nid}
+                    </span>
+                  )}
+                </div>
+                {targetForRequest.beneficiaryRecord && (
+                  <div className="text-[11px] text-slate-500">
+                    {language === "bn" ? "ঠিকানা: " : "Address: "}
+                    {targetForRequest.beneficiaryRecord.unionName}, ওয়ার্ড {targetForRequest.beneficiaryRecord.wardNo}, {targetForRequest.beneficiaryRecord.upazilaName || "নেত্রকোণা সদর"}
+                  </div>
+                )}
+              </div>
+
+              {/* Interactive Scheme Selector for Department Officer */}
+              {targetForRequest.beneficiaryRecord && (
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <label className="block font-bold text-slate-800 text-xs">
+                      {language === "bn"
+                        ? "কোন ভাতাটি বাতিলের সুপারিশ করছেন তা সিলেক্ট করুন:"
+                        : "Select which allowance to recommend for suspension:"}
+                    </label>
+                    <span className="text-[10px] text-slate-500 font-medium">
+                      {language === "bn" ? "মোট ভাতা: " : "Total: "}
+                      {targetForRequest.beneficiaryRecord.activeEnrollmentCount} টি
+                    </span>
+                  </div>
+
+                  <div className="space-y-2 max-h-60 overflow-y-auto pr-0.5">
+                    {[
+                      { item: targetForRequest.beneficiaryRecord.primaryScheme, isPrimary: true },
+                      ...targetForRequest.beneficiaryRecord.excessSchemes.map((s) => ({
+                        item: s,
+                        isPrimary: false,
+                      })),
+                    ].map(({ item, isPrimary }) => {
+                      const isSelected = targetForRequest.enrollmentId === item.enrollmentId;
+                      return (
+                        <div
+                          key={item.enrollmentId}
+                          onClick={() => {
+                            setTargetForRequest({
+                              ...targetForRequest,
+                              enrollmentId: item.enrollmentId,
+                              schemeName: item.schemeName,
+                              departmentName: item.departmentName,
+                              monthlyAmount: item.monthlyAmount,
+                            });
+                            setSuspensionReason(
+                              language === "bn"
+                                ? `দপ্তর নিরীক্ষায় দেখা গেছে নাগরিক একই সাথে দ্বৈত সুবিধা গ্রহণ করছেন বিধায় ${formatSchemeName(item.schemeName, "bn")} স্থগিতের সুপারিশ করা হলো।`
+                                : `Audit reveals beneficiary is receiving dual benefits; recommending suspension of ${formatSchemeName(item.schemeName, "en")}.`
+                            );
+                          }}
+                          className={`p-3 rounded-2xl border-2 transition-all cursor-pointer flex items-center justify-between gap-2.5 ${
+                            isSelected
+                              ? "border-blue-600 bg-blue-50/80 shadow-xs ring-1 ring-blue-500/20"
+                              : "border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50/70"
+                          }`}
+                        >
+                          <div className="flex items-start gap-2.5 min-w-0">
+                            <input
+                              type="radio"
+                              name="selected_suspension_scheme"
+                              checked={isSelected}
+                              onChange={() => {}}
+                              className="mt-1 text-blue-600 focus:ring-blue-500 cursor-pointer shrink-0"
+                            />
+                            <div className="min-w-0">
+                              <div className="font-bold text-slate-900 text-xs flex items-center gap-1.5 flex-wrap">
+                                <span>{formatSchemeName(item.schemeName, language)}</span>
+                                {isPrimary ? (
+                                  <span className="bg-emerald-100 text-emerald-800 text-[10px] font-bold px-2 py-0.5 rounded-full border border-emerald-300 shrink-0">
+                                    {language === "bn" ? "মূল ভাতা (আগে চালু)" : "Primary (Earlier)"}
+                                  </span>
+                                ) : (
+                                  <span className="bg-amber-100 text-amber-900 text-[10px] font-bold px-2 py-0.5 rounded-full border border-amber-300 shrink-0">
+                                    {language === "bn" ? "অতিরিক্ত ভাতা (পরে চালু)" : "Excess (Later)"}
+                                  </span>
+                                )}
+                              </div>
+                              <div className="text-[11px] text-slate-600 mt-0.5 flex items-center gap-1.5 flex-wrap">
+                                <span>{formatDepartmentName(item.departmentName, language)}</span>
+                                <span>•</span>
+                                <span className="font-semibold text-slate-800">
+                                  {formatCurrency(item.monthlyAmount)}{t.common.perMonth}
+                                </span>
+                              </div>
+                              <div className="text-[10px] text-slate-500 mt-0.5 flex items-center gap-1">
+                                <span>{language === "bn" ? "ভাতা শুরুর তারিখ:" : "Enrolled:"}</span>
+                                <span className="font-mono text-slate-700 font-medium">
+                                  {item.startDate ? new Date(item.startDate).toLocaleDateString(language === "bn" ? "bn-BD" : "en-US") : "N/A"}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="shrink-0 text-right">
+                            {isSelected ? (
+                              <span className="text-[10px] font-bold text-blue-700 bg-blue-100 px-2 py-1 rounded-lg">
+                                {language === "bn" ? "নির্বাচিত" : "Selected"}
+                              </span>
+                            ) : (
+                              <span className="text-[10px] text-slate-400 font-medium">
+                                {language === "bn" ? "বাছুন" : "Choose"}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
               <div className="p-3 bg-blue-50/70 rounded-2xl border border-blue-200 text-xs space-y-1">
                 <div>
-                  {language === "bn" ? "সুবিধাভোগী: " : "Beneficiary: "}
-                  <strong className="text-slate-900">{targetForRequest.beneficiaryName}</strong>
-                </div>
-                <div>
-                  {language === "bn" ? "স্থগিত প্রস্তাবিত ভাতা: " : "Proposed Scheme to Suspend: "}
-                  <strong className="text-blue-900">{formatSchemeName(targetForRequest.schemeName, language)}</strong> (
+                  {language === "bn" ? "স্থগিতের জন্য প্রস্তাবিত ভাতা: " : "Target Scheme for Suspension: "}
+                  <strong className="text-blue-900 font-bold">{formatSchemeName(targetForRequest.schemeName, language)}</strong> (
                   {formatCurrency(targetForRequest.monthlyAmount)}{t.common.perMonth})
                 </div>
                 <div className="text-[11px] text-slate-500">

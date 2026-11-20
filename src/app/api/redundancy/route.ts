@@ -254,12 +254,19 @@ export async function GET(request: Request) {
         if (!matched) continue;
       }
 
-      // 4. Calculate Financial Leak
-      // Sort schemes by monthlyAmount descending
-      // The highest-value scheme is the primary / eligible allowance; all others are excess
-      const sortedEnrollments = [...cluster.activeEnrollments].sort(
-        (a, b) => b.monthlyAmount - a.monthlyAmount
-      );
+      // 4. Calculate Financial Leak & Primary vs Excess Allowance
+      // First-Enrolled / Chronological Seniority Rule:
+      // The allowance that started earliest (ascending startDate) is considered the legitimate primary allowance.
+      // Subsequently enrolled allowances are deemed redundant/excess.
+      // Secondary tie-breaker: If start dates are identical, higher monthly financial amount takes precedence.
+      const sortedEnrollments = [...cluster.activeEnrollments].sort((a, b) => {
+        const timeA = new Date(a.startDate).getTime();
+        const timeB = new Date(b.startDate).getTime();
+        if (!isNaN(timeA) && !isNaN(timeB) && timeA !== timeB) {
+          return timeA - timeB; // Earliest enrolled scheme is primary
+        }
+        return b.monthlyAmount - a.monthlyAmount; // Secondary tie-break: higher monthly value
+      });
 
       const primary = sortedEnrollments[0];
       const excess = sortedEnrollments.slice(1);
