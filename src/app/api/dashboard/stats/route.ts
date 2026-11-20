@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { ensureDefaultMasterData } from "@/lib/seed";
 import { NETROKONA_UPAZILAS, NETROKONA_DISTRICT } from "@/lib/netrokona";
+import { getSessionUser, getEnrollmentScope, getBeneficiaryScope } from "@/lib/data-scope";
 
 export async function GET(request: Request) {
   try {
@@ -14,46 +15,64 @@ export async function GET(request: Request) {
 
     const { searchParams } = new URL(request.url);
     const upazilaParam = searchParams.get("upazila")?.trim() || "";
+    const departmentIdParam = searchParams.get("departmentId")?.trim() || "";
 
-    const userRole = request.headers.get("x-user-role");
-    const userUpazila = request.headers.get("x-user-upazila");
-
-    let effectiveUpazila = upazilaParam;
-    if (userRole === "UPAZILA_ADMIN" && userUpazila) {
-      effectiveUpazila = userUpazila;
-    }
-
-    const whereBeneficiary: any = {};
-    if (effectiveUpazila && effectiveUpazila !== "all" && effectiveUpazila !== "সমগ্র জেলা" && effectiveUpazila !== "সমগ্র নেত্রকোণা জেলা") {
-      whereBeneficiary.upazilaName = effectiveUpazila;
-    }
-
-    // 1. Total counts
-    const totalBeneficiaries = await prisma.beneficiary.count({ where: whereBeneficiary });
-    const totalEnrollments = await prisma.enrollment.count({
-      where: effectiveUpazila ? { beneficiary: whereBeneficiary } : {},
+    // Resolve user session and administrative scope
+    const user = await getSessionUser(request);
+    const enrollmentScope = getEnrollmentScope(user, {
+      upazila: upazilaParam,
+      departmentId: departmentIdParam,
     });
+    const beneficiaryScope = getBeneficiaryScope(user, {
+      upazila: upazilaParam,
+      departmentId: departmentIdParam,
+    });
+
+    // 1. Total counts (strictly filtered by administrative scope)
+    const totalBeneficiaries = await prisma.beneficiary.count({ where: beneficiaryScope });
+    const totalEnrollments = await prisma.enrollment.count({ where: enrollmentScope });
     const activeEnrollments = await prisma.enrollment.count({
-      where: { status: "Active", ...(effectiveUpazila ? { beneficiary: whereBeneficiary } : {}) },
+      where: {
+        ...enrollmentScope,
+        status: { in: ["ACTIVE", "Active"] },
+      },
     });
     const flaggedEnrollments = await prisma.enrollment.count({
-      where: { status: "Flagged", ...(effectiveUpazila ? { beneficiary: whereBeneficiary } : {}) },
+      where: {
+        ...enrollmentScope,
+        status: { in: ["FLAGGED", "Flagged"] },
+      },
     });
     const suspendedEnrollments = await prisma.enrollment.count({
       where: {
-        OR: [{ status: "Suspended" }, { status: "SUSPENDED" }],
-        ...(effectiveUpazila ? { beneficiary: whereBeneficiary } : {}),
+        ...enrollmentScope,
+        status: { in: ["SUSPENDED", "Suspended"] },
       },
     });
-    const totalDepartments = await prisma.department.count();
-    const totalSchemes = await prisma.scheme.count();
+    const archivedEnrollments = await prisma.enrollment.count({
+      where: {
+        ...enrollmentScope,
+        OR: [{ isArchived: true }, { status: { in: ["ARCHIVED", "Archived"] } }],
+      },
+    });
 
-    // 2. Department-wise breakdown
+    const isDeptOfficer = user?.role === "DEPT_OFFICER" || user?.role === "DEPARTMENT_OFFICER";
+    const deptWhere = isDeptOfficer && user?.departmentId ? { id: user.departmentId } : {};
+
+    const totalDepartments = await prisma.department.count({ where: deptWhere });
+    const totalSchemes = await prisma.scheme.count({
+      where: isDeptOfficer && user?.departmentId ? { departmentId: user.departmentId } : {},
+    });
+
+    // 2. Department-wise breakdown within user's geographic & department scope
     const departments = await prisma.department.findMany({
+      where: deptWhere,
       include: {
         schemes: {
           include: {
-            enrollments: true,
+            enrollments: {
+              where: enrollmentScope.beneficiary ? { beneficiary: enrollmentScope.beneficiary } : {},
+            },
           },
         },
       },
@@ -63,44 +82,59 @@ export async function GET(request: Request) {
       let deptEnrollments = 0;
       let deptBudgetMonthly = 0;
       for (const scheme of dept.schemes) {
-        const activeCount = scheme.enrollments.filter((e) => e.status === "Active" || e.status === "Flagged").length;
+        const activeCount = scheme.enrollments.filter(
+          (e) => e.status === "ACTIVE" || e.status === "Active" || e.status === "FLAGGED" || e.status === "Flagged"
+        ).length;
         deptEnrollments += activeCount;
         deptBudgetMonthly += activeCount * scheme.monthlyAmount;
       }
       return {
         id: dept.id,
         name: dept.name,
+        nameBn: dept.nameBn,
+        nameEn: dept.nameEn,
         schemeCount: dept.schemes.length,
         enrollmentCount: deptEnrollments,
         monthlyBudget: deptBudgetMonthly,
       };
     });
 
-    // 3. Upazila & Union breakdown
-    const allBeneficiaries = await prisma.beneficiary.findMany({
+    // 3. Upazila & Union breakdown within administrative scope
+    const scopedBeneficiaries = await prisma.beneficiary.findMany({
+      where: beneficiaryScope,
       select: {
         district: true,
+        districtName: true,
         upazilaName: true,
         unionName: true,
         enrollments: {
+          where: enrollmentScope.scheme ? { scheme: enrollmentScope.scheme } : {},
           select: {
             status: true,
+            isArchived: true,
           },
         },
       },
     });
 
-    const upazilaMap = new Map<string, { upazilaName: string; total: number; active: number; flagged: number; suspended: number }>();
+    const upazilaMap = new Map<string, { upazilaName: string; total: number; active: number; flagged: number; suspended: number; archived: number }>();
     for (const u of NETROKONA_UPAZILAS) {
-      upazilaMap.set(u.nameBn, { upazilaName: u.nameBn, total: 0, active: 0, flagged: 0, suspended: 0 });
+      // If user is locked to an upazila, only show their upazila in the map
+      if (user?.role === "UPAZILA_ADMIN" && user.upazilaName && user.upazilaName !== u.nameBn) {
+        continue;
+      }
+      if (isDeptOfficer && user?.upazilaName && user.upazilaName !== u.nameBn) {
+        continue;
+      }
+      upazilaMap.set(u.nameBn, { upazilaName: u.nameBn, total: 0, active: 0, flagged: 0, suspended: 0, archived: 0 });
     }
 
     const unionMap = new Map<string, { unionName: string; upazilaName: string; total: number; active: number; flagged: number }>();
 
-    for (const b of allBeneficiaries) {
+    for (const b of scopedBeneficiaries) {
       const upz = b.upazilaName || "অন্যান্য";
       if (!upazilaMap.has(upz)) {
-        upazilaMap.set(upz, { upazilaName: upz, total: 0, active: 0, flagged: 0, suspended: 0 });
+        upazilaMap.set(upz, { upazilaName: upz, total: 0, active: 0, flagged: 0, suspended: 0, archived: 0 });
       }
       const upzData = upazilaMap.get(upz)!;
       upzData.total += 1;
@@ -113,14 +147,16 @@ export async function GET(request: Request) {
       uData.total += 1;
 
       for (const e of b.enrollments) {
-        if (e.status === "Active") {
+        if (e.status === "ACTIVE" || e.status === "Active") {
           upzData.active += 1;
           uData.active += 1;
-        } else if (e.status === "Flagged") {
+        } else if (e.status === "FLAGGED" || e.status === "Flagged") {
           upzData.flagged += 1;
           uData.flagged += 1;
-        } else if (e.status === "Suspended" || e.status === "SUSPENDED") {
+        } else if (e.status === "SUSPENDED" || e.status === "Suspended") {
           upzData.suspended += 1;
+        } else if (e.status === "ARCHIVED" || e.status === "Archived" || e.isArchived) {
+          upzData.archived += 1;
         }
       }
     }
@@ -128,8 +164,9 @@ export async function GET(request: Request) {
     const upazilaStats = Array.from(upazilaMap.values());
     const unionStats = Array.from(unionMap.values());
 
-    // 4. Recent Upload Batches
+    // 4. Recent Upload Batches within scope
     const recentEnrollments = await prisma.enrollment.findMany({
+      where: enrollmentScope,
       take: 100,
       orderBy: { createdAt: "desc" },
       select: {
@@ -153,8 +190,8 @@ export async function GET(request: Request) {
       }
       const bData = batchMap.get(e.uploadedBatchId)!;
       bData.total += 1;
-      if (e.status === "Active") bData.active += 1;
-      if (e.status === "Flagged") bData.flagged += 1;
+      if (e.status === "ACTIVE" || e.status === "Active") bData.active += 1;
+      if (e.status === "FLAGGED" || e.status === "Flagged") bData.flagged += 1;
     }
 
     const recentBatches = Array.from(batchMap.values()).slice(0, 5);
@@ -162,13 +199,14 @@ export async function GET(request: Request) {
     return NextResponse.json({
       success: true,
       district: NETROKONA_DISTRICT,
-      selectedUpazila: effectiveUpazila || null,
+      selectedUpazila: (enrollmentScope.beneficiary as any)?.upazilaName || upazilaParam || null,
       summary: {
         totalBeneficiaries,
         totalEnrollments,
         activeEnrollments,
         flaggedEnrollments,
         suspendedEnrollments,
+        archivedEnrollments,
         totalDepartments,
         totalSchemes,
       },

@@ -431,35 +431,35 @@ async function main() {
     }
   }
 
-  // --------------------------------------------------------------------------
-  // 4. Update Existing Beneficiaries with districtName
-  // --------------------------------------------------------------------------
-  await prisma.beneficiary.updateMany({
-    where: {
-      OR: [
-        { districtName: null },
-        { districtName: "" },
-      ],
-    },
-    data: {
-      district: NETROKONA_DISTRICT.nameBn,
-      districtName: NETROKONA_DISTRICT.nameBn,
-    },
-  });
+    // --------------------------------------------------------------------------
+    // 4. Update Existing Beneficiaries with districtName
+    // --------------------------------------------------------------------------
+    await prisma.beneficiary.updateMany({
+      where: {
+        OR: [
+          { districtName: null },
+          { districtName: "" },
+        ],
+      },
+      data: {
+        district: NETROKONA_DISTRICT.nameBn,
+        districtName: NETROKONA_DISTRICT.nameBn,
+      },
+    });
 
-  // --------------------------------------------------------------------------
-  // 5. Sample Beneficiaries across 2 Upazilas: Kalmakanda & Durgapur
-  //    Demonstrating 4 Statuses: ACTIVE, SUSPENDED, ARCHIVED, and Duplicates
-  // --------------------------------------------------------------------------
-  console.log("\n📋 4. Seeding Sample Data across Kalmakanda & Durgapur (4 Statuses)...");
+// --------------------------------------------------------------------------
+// 5. Sample Beneficiaries across 2 Upazilas: Kalmakanda & Durgapur
+//    Demonstrating 4 Statuses: ACTIVE, SUSPENDED, ARCHIVED, and Duplicates
+// --------------------------------------------------------------------------
+console.log("\n📋 4. Seeding Sample Data across Kalmakanda & Durgapur (4 Statuses)...");
 
-  // Get schemes
-  const oldAgeScheme = await prisma.scheme.findFirst({ where: { name: { contains: "Old Age" } } });
-  const widowScheme = await prisma.scheme.findFirst({ where: { name: { contains: "Widow" } } });
-  const disabilityScheme = await prisma.scheme.findFirst({ where: { name: { contains: "Disability" } } });
-  const vwbScheme = await prisma.scheme.findFirst({ where: { name: { contains: "VWB" } } });
-  const ffpScheme = await prisma.scheme.findFirst({ where: { name: { contains: "Food Friendly" } } });
-  const vgfScheme = await prisma.scheme.findFirst({ where: { name: { contains: "VGF" } } });
+// Get schemes
+const oldAgeScheme = await prisma.scheme.findFirst({ where: { name: { contains: "Old Age" } } });
+const widowScheme = await prisma.scheme.findFirst({ where: { name: { contains: "Widow" } } });
+const disabilityScheme = await prisma.scheme.findFirst({ where: { name: { contains: "Disability" } } });
+const vwbScheme = await prisma.scheme.findFirst({ where: { name: { contains: "VWB" } } });
+const ffpScheme = await prisma.scheme.findFirst({ where: { name: { contains: "Food Friendly" } } });
+const vgfScheme = await prisma.scheme.findFirst({ where: { name: { contains: "VGF" } } });
 
   const kalmakandaUno = await prisma.user.findFirst({ where: { email: "uno.kalmakanda@netrokona.gov.bd" } });
   const durgapurUno = await prisma.user.findFirst({ where: { email: "uno.durgapur@netrokona.gov.bd" } });
@@ -772,153 +772,153 @@ async function main() {
       },
     ];
 
-    for (const bData of sampleBeneficiaries) {
-      let b = await prisma.beneficiary.findFirst({
-        where: { nid: bData.nid },
-      });
-
-      if (!b) {
-        b = await prisma.beneficiary.create({
-          data: {
-            fullName: bData.fullName,
-            nameBn: bData.nameBn,
-            nameEn: bData.nameEn,
-            guardianName: bData.guardianName,
-            fatherName: bData.fatherName,
-            gender: bData.gender,
-            dateOfBirth: bData.dateOfBirth,
-            nid: bData.nid,
-            mobile: bData.mobile,
-            district: bData.district,
-            districtName: bData.districtName,
-            upazilaName: bData.upazilaName,
-            unionName: bData.unionName,
-            wardNo: bData.wardNo,
-            isArchived: bData.isArchived,
-            archiveReason: bData.archiveReason || null,
-            archiveNote: bData.archiveNote || null,
-            archivedAt: bData.archivedAt || null,
-            archivedBy: bData.archivedBy || null,
-          },
+      for (const bData of sampleBeneficiaries) {
+        let b = await prisma.beneficiary.findFirst({
+          where: { nid: bData.nid },
         });
-        console.log(`  ✓ Created Beneficiary in ${bData.upazilaName}: ${b.nameBn || b.fullName} [Archived: ${b.isArchived}]`);
 
-        for (const enr of bData.enrollments) {
-          const createdEnr = await prisma.enrollment.create({
+        if (!b) {
+          b = await prisma.beneficiary.create({
             data: {
-              beneficiaryId: b.id,
-              schemeId: enr.schemeId,
-              cardNumber: enr.cardNumber,
-              startDate: enr.startDate,
-              status: enr.status,
-              isArchived: enr.isArchived || false,
-              archiveReason: enr.archiveReason || null,
-              archiveNote: enr.archiveNote || null,
-              archivedAt: enr.archivedAt || null,
-              archivedBy: enr.archivedBy || null,
-            },
-            include: {
-              scheme: true,
+              fullName: bData.fullName,
+              nameBn: bData.nameBn,
+              nameEn: bData.nameEn,
+              guardianName: bData.guardianName,
+              fatherName: bData.fatherName,
+              gender: bData.gender,
+              dateOfBirth: bData.dateOfBirth,
+              nid: bData.nid,
+              mobile: bData.mobile,
+              district: bData.district,
+              districtName: bData.districtName,
+              upazilaName: bData.upazilaName,
+              unionName: bData.unionName,
+              wardNo: bData.wardNo,
+              isArchived: bData.isArchived,
+              archiveReason: bData.archiveReason || null,
+              archiveNote: bData.archiveNote || null,
+              archivedAt: bData.archivedAt || null,
+              archivedBy: bData.archivedBy || null,
             },
           });
+          console.log(`  ✓ Created Beneficiary in ${bData.upazilaName}: ${b.nameBn || b.fullName} [Archived: ${b.isArchived}]`);
 
-          // If SUSPENDED and removalApproved is true, create corresponding RemovalRequest
-          if (enr.status === "SUSPENDED" && (enr as any).removalApproved) {
-            const unoUser = bData.upazilaName === "কলমাকান্দা" ? kalmakandaUno : durgapurUno;
-            const deptOfficer = bData.upazilaName === "কলমাকান্দা" ? kalmakandaDssUser : durgapurDwaUser;
-
-            if (unoUser && deptOfficer) {
-              await prisma.removalRequest.upsert({
-                where: { enrollmentId: createdEnr.id },
-                update: {
-                  status: "APPROVED",
-                  reviewedAt: new Date(),
-                  reviewedByUserId: unoUser.id,
-                  adminComment: (enr as any).suspensionReason || "আবেদনটি যথাযথ থাকায় অনুমোদনপূর্বক বাতিল করা হলো।",
-                },
-                create: {
-                  enrollmentId: createdEnr.id,
+          for (const enr of bData.enrollments) {
+              const createdEnr = await prisma.enrollment.create({
+                data: {
                   beneficiaryId: b.id,
-                  departmentId: createdEnr.scheme.departmentId,
-                  requestedByUserId: deptOfficer.id,
-                  requestReason: "নীতিমালা বহির্ভূত ভাতা গ্রহণ বা তথ্যের অসঙ্গতি।",
-                  status: "APPROVED",
-                  reviewedByUserId: unoUser.id,
-                  adminComment: (enr as any).suspensionReason || "আবেদনটি যথাযথ থাকায় অনুমোদনপূর্বক বাতিল করা হলো।",
-                  district: NETROKONA_DISTRICT.nameBn,
-                  upazilaName: bData.upazilaName,
-                  reviewedAt: new Date(),
+                  schemeId: enr.schemeId,
+                  cardNumber: enr.cardNumber,
+                  startDate: enr.startDate,
+                  status: enr.status,
+                  isArchived: enr.isArchived || false,
+                  archiveReason: enr.archiveReason || null,
+                  archiveNote: enr.archiveNote || null,
+                  archivedAt: enr.archivedAt || null,
+                  archivedBy: enr.archivedBy || null,
+                },
+                include: {
+                  scheme: true,
                 },
               });
-              console.log(`    ↳ Linked APPROVED RemovalRequest for UNO: ${createdEnr.cardNumber}`);
+
+              // If SUSPENDED and removalApproved is true, create corresponding RemovalRequest
+              if(enr.status === "SUSPENDED" && (enr as any).removalApproved) {
+              const unoUser = bData.upazilaName === "কলমাকান্দা" ? kalmakandaUno : durgapurUno;
+              const deptOfficer = bData.upazilaName === "কলমাকান্দা" ? kalmakandaDssUser : durgapurDwaUser;
+
+              if (unoUser && deptOfficer) {
+                await prisma.removalRequest.upsert({
+                  where: { enrollmentId: createdEnr.id },
+                  update: {
+                    status: "APPROVED",
+                    reviewedAt: new Date(),
+                    reviewedByUserId: unoUser.id,
+                    adminComment: (enr as any).suspensionReason || "আবেদনটি যথাযথ থাকায় অনুমোদনপূর্বক বাতিল করা হলো।",
+                  },
+                  create: {
+                    enrollmentId: createdEnr.id,
+                    beneficiaryId: b.id,
+                    departmentId: createdEnr.scheme.departmentId,
+                    requestedByUserId: deptOfficer.id,
+                    requestReason: "নীতিমালা বহির্ভূত ভাতা গ্রহণ বা তথ্যের অসঙ্গতি।",
+                    status: "APPROVED",
+                    reviewedByUserId: unoUser.id,
+                    adminComment: (enr as any).suspensionReason || "আবেদনটি যথাযথ থাকায় অনুমোদনপূর্বক বাতিল করা হলো।",
+                    district: NETROKONA_DISTRICT.nameBn,
+                    upazilaName: bData.upazilaName,
+                    reviewedAt: new Date(),
+                  },
+                });
+                console.log(`    ↳ Linked APPROVED RemovalRequest for UNO: ${createdEnr.cardNumber}`);
+              }
             }
           }
-        }
-      } else {
-        // Update existing beneficiary
-        await prisma.beneficiary.update({
-          where: { id: b.id },
-          data: {
-            district: bData.district,
-            districtName: bData.districtName,
-            upazilaName: bData.upazilaName,
-            unionName: bData.unionName,
-            wardNo: bData.wardNo,
-            isArchived: bData.isArchived,
-            archiveReason: bData.archiveReason || null,
-            archiveNote: bData.archiveNote || null,
-            archivedAt: bData.archivedAt || null,
-            archivedBy: bData.archivedBy || null,
-          },
-        });
-
-        // Ensure enrollments exist and have matching statuses
-        for (const enr of bData.enrollments) {
-          const existingEnr = await prisma.enrollment.findFirst({
-            where: { beneficiaryId: b.id, schemeId: enr.schemeId },
+        } else {
+          // Update existing beneficiary
+          await prisma.beneficiary.update({
+            where: { id: b.id },
+            data: {
+              district: bData.district,
+              districtName: bData.districtName,
+              upazilaName: bData.upazilaName,
+              unionName: bData.unionName,
+              wardNo: bData.wardNo,
+              isArchived: bData.isArchived,
+              archiveReason: bData.archiveReason || null,
+              archiveNote: bData.archiveNote || null,
+              archivedAt: bData.archivedAt || null,
+              archivedBy: bData.archivedBy || null,
+            },
           });
 
-          if (existingEnr) {
-            await prisma.enrollment.update({
-              where: { id: existingEnr.id },
-              data: {
-                status: enr.status,
-                isArchived: enr.isArchived || false,
-                archiveReason: enr.archiveReason || null,
-                archiveNote: enr.archiveNote || null,
-                archivedAt: enr.archivedAt || null,
-                archivedBy: enr.archivedBy || null,
-              },
+          // Ensure enrollments exist and have matching statuses
+          for (const enr of bData.enrollments) {
+            const existingEnr = await prisma.enrollment.findFirst({
+              where: { beneficiaryId: b.id, schemeId: enr.schemeId },
             });
+
+            if (existingEnr) {
+              await prisma.enrollment.update({
+                where: { id: existingEnr.id },
+                data: {
+                  status: enr.status,
+                  isArchived: enr.isArchived || false,
+                  archiveReason: enr.archiveReason || null,
+                  archiveNote: enr.archiveNote || null,
+                  archivedAt: enr.archivedAt || null,
+                  archivedBy: enr.archivedBy || null,
+                },
+              });
+            }
           }
         }
       }
     }
+
+    console.log("\n✅ Netrokona District seeding successfully completed!");
+    console.log("===================================================================");
+    console.log("District Oversight Account:");
+    console.log("  • District Admin (DC): dc@district.gov.bd / dc123 [Role: DISTRICT_ADMIN]");
+    console.log("  • District Admin (Compat): dc@netrokona.gov.bd / admin123");
+    console.log("  • System Admin:        admin@upazila.gov.bd / admin123 [Role: SUPER_ADMIN]");
+    console.log("\nSample Upazilas with 4 Beneficiary Statuses (ACTIVE, SUSPENDED, ARCHIVED, Duplicates):");
+    console.log("  1. কলমাকান্দা উপজেলা (Kalmakanda):");
+    console.log("     - UNO Login: uno.kalmakanda@netrokona.gov.bd / uno123");
+    console.log("     - DSS Login: dss.kalmakanda@netrokona.gov.bd / admin123");
+    console.log("     - Food Login: food.kalmakanda@netrokona.gov.bd / admin123");
+    console.log("  2. দুর্গাপুর উপজেলা (Durgapur):");
+    console.log("     - UNO Login: uno.durgapur@netrokona.gov.bd / uno123");
+    console.log("     - DSS Login: dss.durgapur@netrokona.gov.bd / admin123");
+    console.log("     - DWA Login: dwa.durgapur@netrokona.gov.bd / admin123");
+    console.log("===================================================================");
   }
 
-  console.log("\n✅ Netrokona District seeding successfully completed!");
-  console.log("===================================================================");
-  console.log("District Oversight Account:");
-  console.log("  • District Admin (DC): dc@district.gov.bd / dc123 [Role: DISTRICT_ADMIN]");
-  console.log("  • District Admin (Compat): dc@netrokona.gov.bd / admin123");
-  console.log("  • System Admin:        admin@upazila.gov.bd / admin123 [Role: SUPER_ADMIN]");
-  console.log("\nSample Upazilas with 4 Beneficiary Statuses (ACTIVE, SUSPENDED, ARCHIVED, Duplicates):");
-  console.log("  1. কলমাকান্দা উপজেলা (Kalmakanda):");
-  console.log("     - UNO Login: uno.kalmakanda@netrokona.gov.bd / uno123");
-  console.log("     - DSS Login: dss.kalmakanda@netrokona.gov.bd / admin123");
-  console.log("     - Food Login: food.kalmakanda@netrokona.gov.bd / admin123");
-  console.log("  2. দুর্গাপুর উপজেলা (Durgapur):");
-  console.log("     - UNO Login: uno.durgapur@netrokona.gov.bd / uno123");
-  console.log("     - DSS Login: dss.durgapur@netrokona.gov.bd / admin123");
-  console.log("     - DWA Login: dwa.durgapur@netrokona.gov.bd / admin123");
-  console.log("===================================================================");
-}
-
-main()
-  .catch((e) => {
-    console.error("❌ Seeding failed:", e);
-    process.exit(1);
-  })
-  .finally(async () => {
-    await prisma.$disconnect();
-  });
+  main()
+    .catch((e) => {
+      console.error("❌ Seeding failed:", e);
+      process.exit(1);
+    })
+    .finally(async () => {
+      await prisma.$disconnect();
+    });

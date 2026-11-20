@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { normalizeNid, normalizeBrn } from "@/lib/dedup";
+import { getSessionUser, getBeneficiaryScope } from "@/lib/data-scope";
 
 export interface RedundantEnrollmentItem {
   enrollmentId: string;
@@ -69,35 +70,20 @@ export async function GET(request: Request) {
     const gender = searchParams.get("gender")?.trim() || "";
     const search = searchParams.get("search")?.trim().toLowerCase() || "";
 
-    // Resolve user jurisdiction scoping (from NextAuth or headers)
-    const userRole = session?.user?.role || request.headers.get("x-user-role");
-    const userUpazila = (session?.user as any)?.upazilaName || request.headers.get("x-user-upazila");
-    const userDeptId = session?.user?.departmentId || request.headers.get("x-user-department-id");
-    const userUnion = session?.user?.unionName || request.headers.get("x-user-union");
-
-    if (userRole === "UPAZILA_ADMIN" && userUpazila) {
-      // Upazila Admin (UNO) is strictly locked to their own Upazila
-      upazila = userUpazila;
-    } else if (userRole === "DEPT_OFFICER" || userRole === "DEPARTMENT_OFFICER") {
-      // Dept officer is locked to their assigned department and upazila
-      if (userDeptId) departmentId = userDeptId;
-      if (userUpazila) upazila = userUpazila;
-    } else if (userRole === "UNION_VIEWER" && userUnion) {
-      union = userUnion;
-      if (userUpazila) upazila = userUpazila;
-    }
+    // Resolve user jurisdiction scoping via reusable data scope helper
+    const user = await getSessionUser(request);
+    const scopeFilter = getBeneficiaryScope(user, {
+      upazila,
+      departmentId,
+      union,
+      district,
+    });
 
     // Build Prisma query condition
-    const whereBeneficiary: any = {};
-    if (upazila && upazila !== "all" && upazila !== "সমগ্র জেলা" && upazila !== "সমগ্র নেত্রকোণা জেলা") {
-      whereBeneficiary.upazilaName = upazila;
-    }
-    if (district) {
-      whereBeneficiary.district = district;
-    }
-    if (union && union !== "all") {
-      whereBeneficiary.unionName = { contains: union };
-    }
+    const whereBeneficiary: any = {
+      ...scopeFilter,
+    };
+
     if (ward) {
       whereBeneficiary.wardNo = ward;
     }

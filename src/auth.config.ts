@@ -32,7 +32,8 @@ export const authConfig = {
         token.designation = (user as any).designation;
         token.role = (user as any).role;
         token.departmentId = (user as any).departmentId;
-        token.district = (user as any).district;
+        token.district = (user as any).district || (user as any).districtName;
+        token.districtName = (user as any).districtName || (user as any).district || "নেত্রকোণা";
         token.upazilaName = (user as any).upazilaName;
         token.unionName = (user as any).unionName;
       }
@@ -45,6 +46,7 @@ export const authConfig = {
         session.user.role = token.role as string;
         session.user.departmentId = token.departmentId as string | null;
         (session.user as any).district = (token.district as string | null) || null;
+        (session.user as any).districtName = (token.districtName as string | null) || (token.district as string | null) || null;
         (session.user as any).upazilaName = (token.upazilaName as string | null) || null;
         session.user.unionName = token.unionName as string | null;
       }

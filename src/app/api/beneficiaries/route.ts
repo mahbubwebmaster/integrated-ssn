@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { getSessionUser, getBeneficiaryScope } from "@/lib/data-scope";
 
 async function ensureBeneficiaryDataIntegrity() {
   try {
@@ -89,25 +90,24 @@ export async function GET(request: Request) {
     const limit = Math.max(1, Math.min(500, parseInt(searchParams.get("limit") || "10", 10)));
     const exportAll = searchParams.get("all") === "true";
 
-    const userRole = request.headers.get("x-user-role");
-    const userUpazila = request.headers.get("x-user-upazila");
-    const userUnion = request.headers.get("x-user-union");
-
-    if (userRole === "UPAZILA_ADMIN" && userUpazila) {
-      upazila = userUpazila;
-    }
+    // Resolve administrative data scope for the user
+    const user = await getSessionUser(request);
+    const scopeFilter = getBeneficiaryScope(user, {
+      upazila,
+      departmentId,
+      union,
+      district,
+    });
 
     const andConditions: any[] = [];
 
-    if (district) andConditions.push({ district });
-    if (upazila && upazila !== "all" && upazila !== "সমগ্র জেলা") andConditions.push({ upazilaName: upazila });
-    if (union) andConditions.push({ unionName: { contains: union } });
+    // Apply administrative jurisdiction scope
+    if (Object.keys(scopeFilter).length > 0) {
+      andConditions.push(scopeFilter);
+    }
+
     if (ward) andConditions.push({ wardNo: ward });
     if (gender) andConditions.push({ gender });
-
-    if (userRole === "UNION_VIEWER" && userUnion) {
-      andConditions.push({ unionName: { contains: userUnion } });
-    }
 
     // Age / Date of Birth Filtering
     const now = new Date();
@@ -159,8 +159,8 @@ export async function GET(request: Request) {
       });
     }
 
-    // If departmentId is provided (e.g. for DEPT_OFFICER or filtered view)
-    if (departmentId) {
+    // If departmentId is provided and not already applied by scopeFilter
+    if (departmentId && !scopeFilter.enrollments) {
       andConditions.push({
         enrollments: {
           some: {
