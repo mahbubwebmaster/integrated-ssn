@@ -397,3 +397,82 @@ export async function PATCH(request: Request) {
     return NextResponse.json({ success: false, error: message }, { status: 500 });
   }
 }
+
+export async function DELETE(request: Request) {
+  try {
+    const currentUser = await resolveAdminUser(request);
+
+    // Strict Role Enforcement: ONLY SUPER_ADMIN can delete users
+    if (!currentUser || currentUser.role !== "SUPER_ADMIN") {
+      return NextResponse.json(
+        {
+          success: false,
+          error:
+            "অননুমোদিত অ্যাক্সেস: শুধুমাত্র সিস্টেম সুপার এডমিন (SUPER_ADMIN) ব্যবহারকারী মুছে ফেলতে পারেন। উপজেলা এডমিন বা অন্য কোনো রোলের ইউজার ডিলিট করার এখতিয়ার নেই (Forbidden: Only Super Admin can delete users).",
+        },
+        { status: 403 }
+      );
+    }
+
+    const { searchParams } = new URL(request.url);
+    const body = await request.json().catch(() => ({}));
+    const userId = (body.userId || searchParams.get("userId") || searchParams.get("id") || "").trim();
+
+    if (!userId) {
+      return NextResponse.json(
+        { success: false, error: "মুছে ফেলার জন্য ইউজার আইডি (userId) আবশ্যক।" },
+        { status: 400 }
+      );
+    }
+
+    // Safety: Super Admin cannot delete their own active account
+    if (currentUser.id === userId) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "নিরাপত্তা সতর্কতা: আপনি আপনার নিজের সুপার এডমিন অ্যাকাউন্ট মুছে ফেলতে পারবেন না।",
+        },
+        { status: 400 }
+      );
+    }
+
+    const targetUser = await prisma.user.findUnique({
+      where: { id: userId },
+    });
+
+    if (!targetUser) {
+      return NextResponse.json(
+        { success: false, error: "ব্যবহারকারী অ্যাকাউন্টটি খুঁজে পাওয়া যায়নি।" },
+        { status: 404 }
+      );
+    }
+
+    // Atomic deletion inside transaction with AuditLog
+    await prisma.$transaction(async (tx) => {
+      // Record in AuditLog
+      await tx.auditLog.create({
+        data: {
+          userId: currentUser.id,
+          actionType: "USER_DELETED",
+          entityId: targetUser.id,
+          details: `সুপার এডমিন (${currentUser.name}) কর্তৃক ব্যবহারকারী '${targetUser.name}' (ইমেইল: ${targetUser.email}, ভূমিকা: ${targetUser.role}, পদবি: ${targetUser.designation || "N/A"}) কে সিস্টেম থেকে মুছে ফেলা হয়েছে।`,
+        },
+      });
+
+      // Delete target user
+      await tx.user.delete({
+        where: { id: userId },
+      });
+    });
+
+    return NextResponse.json({
+      success: true,
+      message: `ব্যবহারকারী '${targetUser.name}' সফলভাবে মুছে ফেলা হয়েছে।`,
+      deletedUserId: userId,
+    });
+  } catch (error: unknown) {
+    console.error("Failed to delete user:", error);
+    const message = error instanceof Error ? error.message : "Internal Server Error";
+    return NextResponse.json({ success: false, error: message }, { status: 500 });
+  }
+}
