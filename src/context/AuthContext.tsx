@@ -25,7 +25,7 @@ const EMPTY_USER: UserSession = {
   name: "",
   designation: null,
   email: "",
-  role: "SUPER_ADMIN",
+  role: "UNION_VIEWER",
   roleTitleBn: "",
   roleTitleEn: "",
   phone: null,
@@ -146,6 +146,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     let isMounted = true;
 
     async function loadUsersSafe() {
+      // Do not attempt to fetch protected user list if there is no active session
+      if (!session?.user) {
+        setLoading(false);
+        return;
+      }
+
       try {
         setLoading(true);
         const res = await fetch("/api/auth/users").catch(() => null);

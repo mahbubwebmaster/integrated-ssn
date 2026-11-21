@@ -9,17 +9,12 @@ export const authConfig = {
     authorized({ auth, request: { nextUrl } }) {
       const isLoggedIn = !!auth?.user;
       const isLoginPage = nextUrl.pathname === "/login";
-      const isNextAuthPublic =
-        nextUrl.pathname.startsWith("/api/auth/callback") ||
-        nextUrl.pathname.startsWith("/api/auth/signin") ||
-        nextUrl.pathname.startsWith("/api/auth/signout") ||
-        nextUrl.pathname.startsWith("/api/auth/session") ||
-        nextUrl.pathname.startsWith("/api/auth/csrf") ||
-        nextUrl.pathname.startsWith("/api/auth/providers") ||
-        nextUrl.pathname.startsWith("/api/auth/forgot-password") ||
-        nextUrl.pathname.startsWith("/api/health");
+      const isPublic =
+        nextUrl.pathname.startsWith("/api") ||
+        nextUrl.pathname.startsWith("/_next") ||
+        nextUrl.pathname === "/favicon.ico";
 
-      if (isNextAuthPublic) {
+      if (isPublic) {
         return true;
       }
 

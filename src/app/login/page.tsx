@@ -45,7 +45,6 @@ function LoginCard() {
   const [forgotConfirmPass, setForgotConfirmPass] = useState("");
   const [showForgotPass, setShowForgotPass] = useState(false);
   const [resetToken, setResetToken] = useState("");
-  const [demoOtpHint, setDemoOtpHint] = useState<string | null>(null);
   const [forgotLoading, setForgotLoading] = useState(false);
   const [forgotError, setForgotError] = useState<string | null>(null);
 
@@ -93,7 +92,6 @@ function LoginCard() {
     setForgotOtp("");
     setForgotNewPass("");
     setForgotConfirmPass("");
-    setDemoOtpHint(null);
     setView("forgot");
   };
 
@@ -134,9 +132,6 @@ function LoginCard() {
       }
 
       setResetToken(data.resetToken);
-      if (data.demoOtp) {
-        setDemoOtpHint(data.demoOtp);
-      }
       setForgotStep(2);
     } catch (err) {
       console.error("Request OTP error:", err);
@@ -412,19 +407,6 @@ function LoginCard() {
                   {t.login.otpSentNotice || "এই ইমেইল ঠিকানায় ৬-সংখ্যার যাচাইকরণ কোড পাঠানো হয়েছে (মেয়াদ ১৫ মিনিট)।"}
                 </div>
               </div>
-
-              {/* Demo OTP Helper Pill */}
-              {demoOtpHint && (
-                <div className="p-2 rounded-xl bg-amber-50 border border-amber-300 text-amber-900 text-xs flex items-center justify-between">
-                  <span className="font-semibold text-[10px] flex items-center gap-1">
-                    <KeyRound className="w-3.5 h-3.5 text-amber-700" />
-                    {language === "bn" ? "টেস্ট ওটিপি কোড:" : "Testing OTP Code:"}
-                  </span>
-                  <span className="font-mono font-black text-xs tracking-widest text-amber-950 bg-amber-200/80 px-2 py-0.5 rounded">
-                    {demoOtpHint}
-                  </span>
-                </div>
-              )}
 
               {/* 6-digit OTP Input */}
               <div>

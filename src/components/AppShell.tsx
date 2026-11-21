@@ -55,17 +55,22 @@ export function AppShell({ children }: AppShellProps) {
 
   // Fetch pending removal requests count for live badge
   useEffect(() => {
+    if (pathname === "/login" || !currentUser?.id) {
+      setPendingRemovalCount(0);
+      return;
+    }
+
     if (isUpazilaAdmin || isSuperAdmin) {
       fetch("/api/removal-requests?status=PENDING")
-        .then((res) => res.json())
+        .then((res) => (res.ok ? res.json() : null))
         .then((data) => {
-          if (data.success && Array.isArray(data.requests)) {
+          if (data?.success && Array.isArray(data.requests)) {
             setPendingRemovalCount(data.requests.length);
           }
         })
         .catch(() => {});
     }
-  }, [isUpazilaAdmin, isSuperAdmin, pathname]);
+  }, [isUpazilaAdmin, isSuperAdmin, pathname, currentUser?.id]);
 
   // Auto-close mobile drawer when route changes
   useEffect(() => {

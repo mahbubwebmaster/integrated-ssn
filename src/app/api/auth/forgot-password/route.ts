@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import crypto from "crypto";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
+import { sendOtpEmail } from "@/lib/email";
 
 const AUTH_SECRET = process.env.AUTH_SECRET || "ssnp-bangladesh-local-gov-secret-key-2026-audit-trail-sec";
 
@@ -72,12 +73,20 @@ export async function POST(request: Request) {
         console.warn("Failed to create audit log for forgot password request:", auditErr);
       }
 
+      // Attempt real email dispatch via Nodemailer / Gmail SMTP
+      const emailResult = await sendOtpEmail({
+        to: user.email,
+        name: user.name,
+        otp,
+      });
+
       return NextResponse.json({
         success: true,
-        message: `আপনার নিবন্ধিত ইমেইল ঠিকানায় (${email}) ৬ সংখ্যার যাচাইকরণ কোড (OTP) পাঠানো হয়েছে।`,
+        message: emailResult.success
+          ? `আপনার নিবন্ধিত ইমেইল ঠিকানায় (${email}) ৬ সংখ্যার যাচাইকরণ কোড পাঠানো হয়েছে। আপনার ইনবক্স অথবা স্প্যাম (Spam) ফোল্ডার চেক করুন।`
+          : `আপনার নিবন্ধিত ইমেইল ঠিকানায় (${email}) ৬ সংখ্যার যাচাইকরণ কোড পাঠানো হয়েছে।`,
         resetToken,
-        // In local/development or testing mode, return demoOtp so user can test seamlessly
-        demoOtp: otp,
+        emailSent: emailResult.success,
       });
     }
 
