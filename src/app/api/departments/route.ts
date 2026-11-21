@@ -4,8 +4,16 @@ import { prisma } from "@/lib/prisma";
 import { ensureDefaultMasterData } from "@/lib/seed";
 import { calculateMonthlyEquivalent } from "@/lib/scheme-calc";
 
+let cachedDepartments: any = null;
+let cachedDepartmentsTime = 0;
+const DEPT_CACHE_TTL = 60 * 1000;
+
 export async function GET() {
   try {
+    if (cachedDepartments && Date.now() - cachedDepartmentsTime < DEPT_CACHE_TTL) {
+      return NextResponse.json({ success: true, departments: cachedDepartments });
+    }
+
     await ensureDefaultMasterData();
 
     const departments = await prisma.department.findMany({
@@ -17,7 +25,13 @@ export async function GET() {
       orderBy: { name: "asc" },
     });
 
-    return NextResponse.json({ success: true, departments });
+    cachedDepartments = departments;
+    cachedDepartmentsTime = Date.now();
+
+    return NextResponse.json(
+      { success: true, departments },
+      { headers: { "Cache-Control": "public, max-age=60, s-maxage=300, stale-while-revalidate=600" } }
+    );
   } catch (error: unknown) {
     console.error("Failed to fetch departments:", error);
     const message = error instanceof Error ? error.message : "Internal Server Error";
@@ -71,6 +85,7 @@ export async function POST(request: Request) {
           nameEn: cleanNameEn || null,
         },
       });
+      cachedDepartments = null;
       return NextResponse.json({ success: true, department });
     }
 

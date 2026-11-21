@@ -50,7 +50,10 @@ export async function GET(request: Request) {
       ],
     });
 
-    return NextResponse.json({ success: true, schemes });
+    return NextResponse.json(
+      { success: true, schemes },
+      { headers: { "Cache-Control": "public, max-age=60, s-maxage=300, stale-while-revalidate=600" } }
+    );
   } catch (error: unknown) {
     console.error("Failed to fetch schemes:", error);
     const message = error instanceof Error ? error.message : "Internal Server Error";

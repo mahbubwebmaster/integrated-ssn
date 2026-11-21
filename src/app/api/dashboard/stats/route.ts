@@ -4,6 +4,10 @@ import { ensureDefaultMasterData } from "@/lib/seed";
 import { NETROKONA_UPAZILAS, NETROKONA_DISTRICT } from "@/lib/netrokona";
 import { getSessionUser, getEnrollmentScope, getBeneficiaryScope } from "@/lib/data-scope";
 
+// In-memory cache with 30s TTL to prevent expensive duplicate cross-continental queries
+const statsCache = new Map<string, { timestamp: number; payload: any }>();
+const STATS_CACHE_TTL_MS = 30 * 1000;
+
 export async function GET(request: Request) {
   try {
     try {
@@ -19,6 +23,14 @@ export async function GET(request: Request) {
 
     // Resolve user session and administrative scope
     const user = await getSessionUser(request);
+
+    // Check fast cache
+    const cacheKey = `${user?.id || "anon"}_${user?.role || "GUEST"}_${upazilaParam}_${departmentIdParam}`;
+    const cached = statsCache.get(cacheKey);
+    if (cached && Date.now() - cached.timestamp < STATS_CACHE_TTL_MS) {
+      return NextResponse.json(cached.payload);
+    }
+
     const enrollmentScope = getEnrollmentScope(user, {
       upazila: upazilaParam,
       departmentId: departmentIdParam,
@@ -196,7 +208,7 @@ export async function GET(request: Request) {
 
     const recentBatches = Array.from(batchMap.values()).slice(0, 5);
 
-    return NextResponse.json({
+    const payload = {
       success: true,
       district: NETROKONA_DISTRICT,
       selectedUpazila: (enrollmentScope.beneficiary as any)?.upazilaName || upazilaParam || null,
@@ -214,7 +226,10 @@ export async function GET(request: Request) {
       upazilaStats,
       unionStats,
       recentBatches,
-    });
+    };
+
+    statsCache.set(cacheKey, { timestamp: Date.now(), payload });
+    return NextResponse.json(payload);
   } catch (error: unknown) {
     console.error("Dashboard stats failed:", error);
     const message = error instanceof Error ? error.message : "Internal Server Error";

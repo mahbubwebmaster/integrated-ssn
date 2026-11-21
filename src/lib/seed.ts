@@ -2,7 +2,10 @@ import { prisma } from "@/lib/prisma";
 import { hashPassword } from "@/lib/password";
 import { NETROKONA_UPAZILAS, NETROKONA_DISTRICT } from "@/lib/netrokona";
 
+let hasEnsuredMasterData = false;
+
 export async function ensureDefaultMasterData() {
+  if (hasEnsuredMasterData) return;
   const count = await prisma.department.count();
   if (count === 0) {
     const initialData = [
@@ -204,4 +207,5 @@ export async function ensureDefaultUsers() {
       },
     });
   }
+  hasEnsuredMasterData = true;
 }

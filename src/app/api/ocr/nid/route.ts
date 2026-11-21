@@ -6,6 +6,7 @@ interface ExtractedNidData {
   fatherName: string;
   dateOfBirth: string; // YYYY-MM-DD
   nid: string;
+  gender?: "Male" | "Female" | "Other";
 }
 
 export async function POST(request: Request) {
@@ -44,6 +45,7 @@ export async function POST(request: Request) {
         fatherName: "মোঃ আব্দুল হক",
         dateOfBirth: "1972-04-15",
         nid: "19726815801234567",
+        gender: "Female",
       };
       return NextResponse.json({
         success: true,
@@ -99,6 +101,7 @@ Extract the following 5 fields accurately:
 3. "fatherName": Citizen's Father's Name in Bengali (e.g. from 'পিতা: ...')
 4. "dateOfBirth": Date of Birth formatted as strictly YYYY-MM-DD. Convert English or Bengali date text (e.g. '15 Apr 1972' or '১৫ এপ্রিল ১৯৭২' or '1972/04/15') into ISO 'YYYY-MM-DD'.
 5. "nid": National ID Number without spaces or hyphens (digits only, e.g. 10 digits smart card, or 13 or 17 digits old NID).
+6. "gender": Citizen's Gender ('Male' or 'Female' or 'Other'). Deduce from title/name cues (e.g., 'মোসাঃ', 'মোছাঃ', 'বেগম', 'খাতুন' -> Female, 'মোঃ', 'মোহাম্মদ', 'আলী' -> Male) or card indicators.
 
 Return ONLY valid JSON matching this structure without Markdown formatting or extra text:
 {
@@ -106,16 +109,18 @@ Return ONLY valid JSON matching this structure without Markdown formatting or ex
   "nameEn": "string",
   "fatherName": "string",
   "dateOfBirth": "YYYY-MM-DD",
-  "nid": "string"
+  "nid": "string",
+  "gender": "Male" | "Female" | "Other"
 }
 If any field cannot be found or is unclear, return empty string "" for that field.`;
 
     const modelsToTry = [
       "gemini-2.5-flash",
+      "gemini-2.0-flash",
+      "gemini-1.5-flash",
       "gemini-flash-latest",
       "gemini-2.5-flash-lite",
-      "gemini-3.5-flash",
-      "gemini-3.8-flash",
+      "gemini-1.5-flash-8b",
     ];
     let rawText = "";
     const errors: string[] = [];
@@ -221,6 +226,7 @@ If any field cannot be found or is unclear, return empty string "" for that fiel
       fatherName: typeof parsed.fatherName === "string" ? parsed.fatherName.trim() : "",
       dateOfBirth: typeof parsed.dateOfBirth === "string" ? parsed.dateOfBirth.trim() : "",
       nid: typeof parsed.nid === "string" ? parsed.nid.replace(/\D/g, "") : "",
+      gender: parsed.gender === "Male" || parsed.gender === "Female" ? parsed.gender : undefined,
     };
 
     return NextResponse.json({

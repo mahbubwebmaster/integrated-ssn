@@ -192,7 +192,7 @@ export async function GET(request: Request) {
     const isDeptOfficer = user?.role === "DEPT_OFFICER" || user?.role === "DEPARTMENT_OFFICER";
     const effectiveDeptId = (isDeptOfficer ? user?.departmentId : departmentId) || departmentId;
 
-    // Apply statusFilter (ALL, ACTIVE, SUSPENDED, ARCHIVED)
+    // Apply statusFilter (ALL, ACTIVE, PENDING, SUSPENDED, REJECTED, ARCHIVED)
     const statusConditions: any[] = [];
     if (statusFilter === "ACTIVE") {
       statusConditions.push({
@@ -205,6 +205,16 @@ export async function GET(request: Request) {
           },
         },
       });
+    } else if (statusFilter === "PENDING") {
+      statusConditions.push({
+        enrollments: {
+          some: {
+            ...(effectiveDeptId ? { scheme: { departmentId: effectiveDeptId } } : {}),
+            status: { in: ["PENDING", "Pending"] },
+            isArchived: false,
+          },
+        },
+      });
     } else if (statusFilter === "SUSPENDED") {
       statusConditions.push({
         enrollments: {
@@ -212,6 +222,15 @@ export async function GET(request: Request) {
             ...(effectiveDeptId ? { scheme: { departmentId: effectiveDeptId } } : {}),
             status: { in: ["SUSPENDED", "Suspended"] },
             isArchived: false,
+          },
+        },
+      });
+    } else if (statusFilter === "REJECTED") {
+      statusConditions.push({
+        enrollments: {
+          some: {
+            ...(effectiveDeptId ? { scheme: { departmentId: effectiveDeptId } } : {}),
+            status: { in: ["REJECTED", "Rejected"] },
           },
         },
       });
@@ -235,8 +254,20 @@ export async function GET(request: Request) {
       ? { AND: [...andConditions, ...statusConditions] }
       : (andConditions.length > 0 ? { AND: andConditions } : {});
 
-    // Calculate Status Card Counts in parallel
-    const [countAll, countActive, countSuspended, countArchived, total] = await Promise.all([
+    // Prepare pagination
+    const skip = exportAll ? undefined : Math.max(0, (page - 1) * limit);
+    const take = exportAll ? undefined : limit;
+
+    // Calculate Status Card Counts and fetch beneficiaries concurrently in a single parallel batch
+    const [
+      countAll,
+      countActive,
+      countPending,
+      countSuspended,
+      countRejected,
+      countArchived,
+      beneficiaries,
+    ] = await Promise.all([
       prisma.beneficiary.count({ where: baseWhereClause }),
       prisma.beneficiary.count({
         where: {
@@ -249,6 +280,24 @@ export async function GET(request: Request) {
                 some: {
                   ...(effectiveDeptId ? { scheme: { departmentId: effectiveDeptId } } : {}),
                   status: { in: ["ACTIVE", "Active"] },
+                  isArchived: false,
+                },
+              },
+            },
+          ],
+        },
+      }),
+      prisma.beneficiary.count({
+        where: {
+          ...baseWhereClause,
+          AND: [
+            ...(baseWhereClause.AND || []),
+            {
+              isArchived: false,
+              enrollments: {
+                some: {
+                  ...(effectiveDeptId ? { scheme: { departmentId: effectiveDeptId } } : {}),
+                  status: { in: ["PENDING", "Pending"] },
                   isArchived: false,
                 },
               },
@@ -279,6 +328,22 @@ export async function GET(request: Request) {
           AND: [
             ...(baseWhereClause.AND || []),
             {
+              enrollments: {
+                some: {
+                  ...(effectiveDeptId ? { scheme: { departmentId: effectiveDeptId } } : {}),
+                  status: { in: ["REJECTED", "Rejected"] },
+                },
+              },
+            },
+          ],
+        },
+      }),
+      prisma.beneficiary.count({
+        where: {
+          ...baseWhereClause,
+          AND: [
+            ...(baseWhereClause.AND || []),
+            {
               OR: [
                 { isArchived: true },
                 {
@@ -294,32 +359,38 @@ export async function GET(request: Request) {
           ],
         },
       }),
-      prisma.beneficiary.count({
+      prisma.beneficiary.findMany({
         where: whereClause,
+        include: {
+          enrollments: {
+            include: {
+              scheme: {
+                include: { department: true },
+              },
+            },
+            orderBy: { startDate: "desc" },
+          },
+        },
+        orderBy: { createdAt: "desc" },
+        ...(skip !== undefined ? { skip } : {}),
+        ...(take !== undefined ? { take } : {}),
       }),
     ]);
 
-    const totalPages = Math.max(1, Math.ceil(total / limit));
-    const effectivePage = Math.min(page, totalPages);
-    const skip = exportAll ? undefined : (effectivePage - 1) * limit;
-    const take = exportAll ? undefined : limit;
+    const total =
+      statusFilter === "ACTIVE"
+        ? countActive
+        : statusFilter === "PENDING"
+        ? countPending
+        : statusFilter === "SUSPENDED"
+        ? countSuspended
+        : statusFilter === "REJECTED"
+        ? countRejected
+        : statusFilter === "ARCHIVED"
+        ? countArchived
+        : countAll;
 
-    const beneficiaries = await prisma.beneficiary.findMany({
-      where: whereClause,
-      include: {
-        enrollments: {
-          include: {
-            scheme: {
-              include: { department: true },
-            },
-          },
-          orderBy: { startDate: "desc" },
-        },
-      },
-      orderBy: { createdAt: "desc" },
-      ...(skip !== undefined ? { skip } : {}),
-      ...(take !== undefined ? { take } : {}),
-    });
+    const totalPages = Math.max(1, Math.ceil(total / limit));
 
     return NextResponse.json({
       success: true,
@@ -328,16 +399,18 @@ export async function GET(request: Request) {
       statusCounts: {
         all: countAll,
         active: countActive,
+        pending: countPending,
         suspended: countSuspended,
+        rejected: countRejected,
         archived: countArchived,
       },
       pagination: {
         total,
-        page: effectivePage,
+        page,
         limit,
         totalPages,
-        hasNextPage: effectivePage < totalPages,
-        hasPrevPage: effectivePage > 1,
+        hasNextPage: page < totalPages,
+        hasPrevPage: page > 1,
       },
       beneficiaries,
     });
@@ -358,12 +431,10 @@ export async function POST(request: Request) {
       );
     }
 
-    if (session.user.role === "UNION_VIEWER") {
-      return NextResponse.json(
-        { success: false, error: "অ্যাক্সেস ডিনাইড: ইউনিয়ন পর্যবেক্ষক অ্যাকাউন্টে নতুন সুবিধাভোগী যোগ করার অনুমতি নেই (Forbidden)" },
-        { status: 403 }
-      );
-    }
+    const isUnionViewer = session.user.role === "UNION_VIEWER";
+    const userScopeDistrict = (session.user as any).district || (session.user as any).districtName || "নেত্রকোণা";
+    const userScopeUpazila = (session.user as any).upazilaName || "নেত্রকোণা সদর";
+    const userScopeUnion = (session.user as any).unionName || "";
 
     const body = await request.json();
     const {
@@ -381,7 +452,11 @@ export async function POST(request: Request) {
       cardNumber,
     } = body;
 
-    if (!nameBn || !fatherName || !gender || !unionName || !wardNo) {
+    const finalDistrict = isUnionViewer && userScopeDistrict ? userScopeDistrict : (body.district?.trim() || "নেত্রকোণা");
+    const finalUpazila = isUnionViewer && userScopeUpazila ? userScopeUpazila : (body.upazilaName?.trim() || "নেত্রকোণা সদর");
+    const finalUnion = isUnionViewer && userScopeUnion ? userScopeUnion : (unionName?.trim() || "");
+
+    if (!nameBn || !fatherName || !gender || !finalUnion || !wardNo) {
       return NextResponse.json(
         {
           success: false,
@@ -391,32 +466,33 @@ export async function POST(request: Request) {
       );
     }
 
-    // Check NID uniqueness
+    const targetEnrollmentStatus = isUnionViewer ? "PENDING" : "Active";
+
+    // Check if beneficiary already exists by NID or BRN
+    let existingBeneficiary = null;
     if (nid && nid.trim()) {
-      const duplicateNid = await prisma.beneficiary.findFirst({
+      existingBeneficiary = await prisma.beneficiary.findFirst({
         where: { nid: nid.trim() },
+        include: { enrollments: true },
       });
-      if (duplicateNid) {
-        return NextResponse.json(
-          {
-            success: false,
-            error: "এই জাতীয় পরিচয়পত্র (NID) ইতিমধ্যে অন্য একজন নাগরিকের নামে নিবন্ধিত।",
-          },
-          { status: 400 }
-        );
-      }
+    } else if (brn && brn.trim()) {
+      existingBeneficiary = await prisma.beneficiary.findFirst({
+        where: { brn: brn.trim() },
+        include: { enrollments: true },
+      });
     }
 
-    // Check BRN uniqueness
-    if (brn && brn.trim()) {
-      const duplicateBrn = await prisma.beneficiary.findFirst({
-        where: { brn: brn.trim() },
-      });
-      if (duplicateBrn) {
+    if (existingBeneficiary && schemeId) {
+      const alreadyInScheme = existingBeneficiary.enrollments.some(
+        (e) =>
+          e.schemeId === schemeId.trim() &&
+          ["ACTIVE", "Active", "PENDING", "Pending"].includes(e.status)
+      );
+      if (alreadyInScheme) {
         return NextResponse.json(
           {
             success: false,
-            error: "এই জন্ম নিবন্ধন নম্বর (BRN) ইতিমধ্যে নিবন্ধিত রয়েছে।",
+            error: "এই নাগরিকের নামে এই স্কিমে ইতিমধ্যে একটি সক্রিয় ভাতা বা অপেক্ষমান আবেদন রয়েছে।",
           },
           { status: 400 }
         );
@@ -429,50 +505,76 @@ export async function POST(request: Request) {
     const cleanFullName = cleanNameEn ? `${cleanNameBn} (${cleanNameEn})` : cleanNameBn;
     const parsedDob = dateOfBirth ? new Date(dateOfBirth) : null;
 
-    const created = await prisma.beneficiary.create({
-      data: {
-        fullName: cleanFullName,
-        nameBn: cleanNameBn,
-        nameEn: cleanNameEn || null,
-        fatherName: cleanFatherName,
-        guardianName: cleanFatherName,
-        gender: gender.trim(),
-        dateOfBirth: parsedDob,
-        nid: nid ? nid.trim() : null,
-        brn: brn ? brn.trim() : null,
-        mobile: mobile ? mobile.trim() : null,
-        district: body.district ? body.district.trim() : "নেত্রকোণা",
-        upazilaName: body.upazilaName ? body.upazilaName.trim() : "নেত্রকোণা সদর",
-        unionName: unionName.trim(),
-        wardNo: wardNo.trim(),
-        ...(schemeId
-          ? {
-              enrollments: {
-                create: {
-                  schemeId: schemeId.trim(),
-                  status: "Active",
-                  cardNumber: cardNumber ? cardNumber.trim() : null,
-                  startDate: body.startDate ? new Date(body.startDate) : new Date(),
-                  uploadedBatchId: `MANUAL-${new Date().toISOString().split("T")[0]}`,
+    let created;
+    if (existingBeneficiary) {
+      if (schemeId) {
+        await prisma.enrollment.create({
+          data: {
+            beneficiaryId: existingBeneficiary.id,
+            schemeId: schemeId.trim(),
+            status: targetEnrollmentStatus,
+            cardNumber: cardNumber ? cardNumber.trim() : null,
+            startDate: body.startDate ? new Date(body.startDate) : new Date(),
+            uploadedBatchId: null,
+            uploadedByUserId: session.user.id,
+          },
+        });
+      }
+      created = await prisma.beneficiary.findUnique({
+        where: { id: existingBeneficiary.id },
+        include: {
+          enrollments: {
+            include: { scheme: { include: { department: true } } },
+          },
+        },
+      });
+    } else {
+      created = await prisma.beneficiary.create({
+        data: {
+          fullName: cleanFullName,
+          nameBn: cleanNameBn,
+          nameEn: cleanNameEn || null,
+          fatherName: cleanFatherName,
+          guardianName: cleanFatherName,
+          gender: gender.trim(),
+          dateOfBirth: parsedDob,
+          nid: nid ? nid.trim() : null,
+          brn: brn ? brn.trim() : null,
+          mobile: mobile ? mobile.trim() : null,
+          district: finalDistrict,
+          upazilaName: finalUpazila,
+          unionName: finalUnion,
+          wardNo: wardNo.trim(),
+          ...(schemeId
+            ? {
+                enrollments: {
+                  create: {
+                    schemeId: schemeId.trim(),
+                    status: targetEnrollmentStatus,
+                    cardNumber: cardNumber ? cardNumber.trim() : null,
+                    startDate: body.startDate ? new Date(body.startDate) : new Date(),
+                    uploadedBatchId: null,
+                    uploadedByUserId: session.user.id,
+                  },
                 },
-              },
-            }
-          : {}),
-      },
-      include: {
-        enrollments: {
-          include: {
-            scheme: {
-              include: { department: true },
+              }
+            : {}),
+        },
+        include: {
+          enrollments: {
+            include: {
+              scheme: { include: { department: true } },
             },
           },
         },
-      },
-    });
+      });
+    }
 
     return NextResponse.json({
       success: true,
-      message: "সুবিধাভোগীর তথ্য সফলভাবে সংরক্ষণ করা হয়েছে।",
+      message: isUnionViewer
+        ? "সুবিধাভোগীর আবেদন সফলভাবে দাখিল করা হয়েছে। এটি সংশ্লিষ্ট দপ্তরের পর্যালোচনা ও অনুমোদনের জন্য অপেক্ষমান (Pending) রয়েছে।"
+        : "সুবিধাভোগীর তথ্য সফলভাবে সংরক্ষণ করা হয়েছে।",
       beneficiary: created,
     });
   } catch (error: unknown) {

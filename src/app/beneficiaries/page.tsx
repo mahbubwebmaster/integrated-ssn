@@ -40,6 +40,7 @@ import {
   Archive,
   FolderArchive,
   RotateCcw,
+  Clock,
 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { useLanguage } from "@/context/LanguageContext";
@@ -117,6 +118,15 @@ export default function BeneficiariesPage() {
   const [schemes, setSchemes] = useState<SchemeOption[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
+  const [searchInput, setSearchInput] = useState("");
+
+  // Debounce search input by 350ms to avoid querying on every keystroke
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setSearch(searchInput.trim());
+    }, 350);
+    return () => clearTimeout(handler);
+  }, [searchInput]);
   const [upazila, setUpazila] = useState<string>(currentUser.upazilaName || "");
   const [union, setUnion] = useState("");
   const [ward, setWard] = useState("");
@@ -125,21 +135,16 @@ export default function BeneficiariesPage() {
   const [selectedDeptId, setSelectedDeptId] = useState("");
   const [selectedSchemeId, setSelectedSchemeId] = useState("");
 
-  // Interactive Status Filter: ALL, ACTIVE, SUSPENDED, ARCHIVED
-  const [statusFilter, setStatusFilter] = useState<"ALL" | "ACTIVE" | "SUSPENDED" | "ARCHIVED">("ALL");
+  // Interactive Status Filter: ALL, ACTIVE, PENDING, SUSPENDED, REJECTED, ARCHIVED
+  const [statusFilter, setStatusFilter] = useState<"ALL" | "ACTIVE" | "PENDING" | "SUSPENDED" | "REJECTED" | "ARCHIVED">("ALL");
   const [statusCounts, setStatusCounts] = useState({
     all: 0,
     active: 0,
+    pending: 0,
     suspended: 0,
+    rejected: 0,
     archived: 0,
   });
-  const [statsSummary, setStatsSummary] = useState<{
-    totalBeneficiaries: number;
-    totalEnrollments: number;
-    activeEnrollments: number;
-    suspendedEnrollments: number;
-    archivedEnrollments: number;
-  } | null>(null);
 
   // Archive Modal State
   const [isArchiveOpen, setIsArchiveOpen] = useState(false);
@@ -168,6 +173,7 @@ export default function BeneficiariesPage() {
   // Create Modal State
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [createForm, setCreateForm] = useState({
+    departmentId: "",
     nameBn: "",
     nameEn: "",
     fatherName: "",
@@ -276,6 +282,7 @@ export default function BeneficiariesPage() {
     fatherName?: string;
     dateOfBirth?: string;
     nid?: string;
+    gender?: string;
   }) => {
     setCreateForm((prev) => ({
       ...prev,
@@ -284,7 +291,75 @@ export default function BeneficiariesPage() {
       fatherName: data.fatherName || prev.fatherName,
       dateOfBirth: data.dateOfBirth || prev.dateOfBirth,
       nid: data.nid || prev.nid,
+      gender: data.gender === "Female" || data.gender === "Male" || data.gender === "Other" ? data.gender : prev.gender,
     }));
+  };
+
+  // Review Modal State (Approve / Reject Pending Application)
+  const [reviewModalOpen, setReviewModalOpen] = useState(false);
+  const [reviewAction, setReviewAction] = useState<"approve" | "reject">("approve");
+  const [reviewTarget, setReviewTarget] = useState<{
+    enrollmentId: string;
+    beneficiaryName: string;
+    schemeName: string;
+    departmentName: string;
+    nid?: string | null;
+  } | null>(null);
+  const [reviewNote, setReviewNote] = useState("");
+  const [reviewSubmitting, setReviewSubmitting] = useState(false);
+  const [reviewError, setReviewError] = useState<string | null>(null);
+
+  const handleOpenReview = (
+    enrollmentId: string,
+    action: "approve" | "reject",
+    beneficiary: Beneficiary,
+    enrollment: Enrollment
+  ) => {
+    setReviewTarget({
+      enrollmentId,
+      beneficiaryName: beneficiary.nameBn || beneficiary.fullName,
+      schemeName: getSchemeName(enrollment.scheme, language),
+      departmentName: getDepartmentName(enrollment.scheme?.department, language),
+      nid: beneficiary.nid,
+    });
+    setReviewAction(action);
+    setReviewNote("");
+    setReviewError(null);
+    setReviewModalOpen(true);
+  };
+
+  const handleSubmitReview = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!reviewTarget) return;
+    try {
+      setReviewSubmitting(true);
+      setReviewError(null);
+
+      const res = await fetch("/api/beneficiaries/review", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          enrollmentId: reviewTarget.enrollmentId,
+          action: reviewAction,
+          officerNote: reviewNote.trim(),
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        setReviewError(data.error || "আবেদন প্রক্রিয়াকরণ ব্যর্থ হয়েছে।");
+        return;
+      }
+
+      setReviewModalOpen(false);
+      setReviewTarget(null);
+      fetchBeneficiaries(currentPage, pageSize);
+    } catch (err: any) {
+      console.error(err);
+      setReviewError("সার্ভার সংযোগে ত্রুটি হয়েছে।");
+    } finally {
+      setReviewSubmitting(false);
+    }
   };
 
   // Edit Modal State
@@ -365,7 +440,7 @@ export default function BeneficiariesPage() {
   }, []);
 
   // Handle Interactive Status Selection without full page reload
-  const handleSelectStatus = (newStatus: "ALL" | "ACTIVE" | "SUSPENDED" | "ARCHIVED") => {
+  const handleSelectStatus = (newStatus: "ALL" | "ACTIVE" | "PENDING" | "SUSPENDED" | "REJECTED" | "ARCHIVED") => {
     setStatusFilter(newStatus);
     setCurrentPage(1);
     if (typeof window !== "undefined") {
@@ -378,32 +453,6 @@ export default function BeneficiariesPage() {
       window.history.replaceState({}, "", url.toString());
     }
   };
-
-  // Fetch KPI scoped stats summary
-  const fetchStatsSummary = async () => {
-    try {
-      const params = new URLSearchParams();
-      if (upazila && upazila !== "all" && upazila !== "সমগ্র জেলা") params.set("upazila", upazila);
-      if (selectedDeptId) params.set("departmentId", selectedDeptId);
-      const res = await fetch(`/api/dashboard/stats?${params.toString()}`);
-      const data = await res.json();
-      if (data?.success && data?.summary) {
-        setStatsSummary({
-          totalBeneficiaries: data.summary.totalBeneficiaries ?? 0,
-          totalEnrollments: data.summary.totalEnrollments ?? 0,
-          activeEnrollments: data.summary.activeEnrollments ?? 0,
-          suspendedEnrollments: data.summary.suspendedEnrollments ?? 0,
-          archivedEnrollments: data.summary.archivedEnrollments ?? 0,
-        });
-      }
-    } catch (err) {
-      console.error("fetchStatsSummary error:", err);
-    }
-  };
-
-  useEffect(() => {
-    fetchStatsSummary();
-  }, [upazila, selectedDeptId, currentUser]);
 
   // Success Feedback
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
@@ -441,7 +490,7 @@ export default function BeneficiariesPage() {
           setDepartments(data.departments);
         }
       })
-      .catch(() => {});
+      .catch(() => { });
 
     fetch("/api/schemes")
       .then((res) => (res.ok ? res.json() : null))
@@ -450,7 +499,7 @@ export default function BeneficiariesPage() {
           setSchemes(data.schemes);
         }
       })
-      .catch(() => {});
+      .catch(() => { });
   }, []);
 
   // Department lock for DEPT_OFFICER
@@ -467,15 +516,26 @@ export default function BeneficiariesPage() {
     }
   }, [currentUser, isUnionViewer]);
 
-  // Reset to first page when any search/filter changes
+  // Fetch beneficiaries when pagination or filters change without double-fetching
+  const isFirstRender = React.useRef(true);
   useEffect(() => {
-    setCurrentPage(1);
-  }, [search, upazila, union, ward, gender, ageGroup, selectedDeptId, selectedSchemeId, statusFilter]);
+    if (isFirstRender.current) {
+      isFirstRender.current = false;
+      fetchBeneficiaries(currentPage, pageSize);
+      return;
+    }
+    if (currentPage !== 1) {
+      setCurrentPage(1);
+    } else {
+      fetchBeneficiaries(1, pageSize);
+    }
+  }, [search, upazila, union, ward, gender, ageGroup, selectedDeptId, selectedSchemeId, statusFilter, pageSize]);
 
-  // Fetch beneficiaries when pagination or filters change
   useEffect(() => {
-    fetchBeneficiaries(currentPage, pageSize);
-  }, [currentPage, pageSize, search, upazila, union, ward, gender, ageGroup, selectedDeptId, selectedSchemeId, statusFilter]);
+    if (!isFirstRender.current) {
+      fetchBeneficiaries(currentPage, pageSize);
+    }
+  }, [currentPage]);
 
   const fetchBeneficiaries = async (pageToFetch = currentPage, limitToFetch = pageSize) => {
     try {
@@ -611,43 +671,43 @@ export default function BeneficiariesPage() {
 
         return isBn
           ? {
-              "ক্রমিক নং": idx + 1,
-              "উপকারভোগীর নাম (বাংলা)": b.nameBn || b.fullName,
-              "উপকারভোগীর নাম (ইংরেজি)": b.nameEn || "",
-              "পিতার নাম": b.fatherName || b.guardianName,
-              "জন্ম তারিখ": dobFormatted || "প্রযোজ্য নয়",
-              "বয়স": ageVal !== null ? `${ageVal} বছর` : "অজ্ঞাত",
-              "লিঙ্গ": b.gender === "Female" ? "মহিলা" : b.gender === "Male" ? "পুরুষ" : "অন্যান্য",
-              "জাতীয় পরিচয়পত্র (NID)": b.nid || "প্রযোজ্য নয়",
-              "জন্ম নিবন্ধন (BRN)": b.brn || "প্রযোজ্য নয়",
-              "মোবাইল নম্বর": b.mobile || "প্রযোজ্য নয়",
-              "জেলা": b.district || "নেত্রকোণা",
-              "উপজেলা": b.upazilaName || "নেত্রকোণা সদর",
-              "ইউনিয়ন": b.unionName,
-              "ওয়ার্ড": b.wardNo,
-              "নিবন্ধিত কর্মসূচি": schemesList,
-              "মোট মাসিক ভাতা (টাকা)": totalAmount,
-              "স্ট্যাটাস": activeEnrollments.length > 1 ? "ডুপ্লিকেট / একাধিক ভাতা" : "একক ভাতা",
-            }
+            "ক্রমিক নং": idx + 1,
+            "উপকারভোগীর নাম (বাংলা)": b.nameBn || b.fullName,
+            "উপকারভোগীর নাম (ইংরেজি)": b.nameEn || "",
+            "পিতার নাম": b.fatherName || b.guardianName,
+            "জন্ম তারিখ": dobFormatted || "প্রযোজ্য নয়",
+            "বয়স": ageVal !== null ? `${ageVal} বছর` : "অজ্ঞাত",
+            "লিঙ্গ": b.gender === "Female" ? "মহিলা" : b.gender === "Male" ? "পুরুষ" : "অন্যান্য",
+            "জাতীয় পরিচয়পত্র (NID)": b.nid || "প্রযোজ্য নয়",
+            "জন্ম নিবন্ধন (BRN)": b.brn || "প্রযোজ্য নয়",
+            "মোবাইল নম্বর": b.mobile || "প্রযোজ্য নয়",
+            "জেলা": b.district || "নেত্রকোণা",
+            "উপজেলা": b.upazilaName || "নেত্রকোণা সদর",
+            "ইউনিয়ন": b.unionName,
+            "ওয়ার্ড": b.wardNo,
+            "নিবন্ধিত কর্মসূচি": schemesList,
+            "মোট মাসিক ভাতা (টাকা)": totalAmount,
+            "স্ট্যাটাস": activeEnrollments.length > 1 ? "ডুপ্লিকেট / একাধিক ভাতা" : "একক ভাতা",
+          }
           : {
-              "SL No": idx + 1,
-              "Beneficiary Name (Bengali)": b.nameBn || b.fullName,
-              "Beneficiary Name (English)": b.nameEn || "",
-              "Father's Name": b.fatherName || b.guardianName,
-              "Date of Birth": dobFormatted || "N/A",
-              "Age": ageVal !== null ? `${ageVal} yrs` : "N/A",
-              "Gender": b.gender,
-              "National ID (NID)": b.nid || "N/A",
-              "Birth Certificate (BRN)": b.brn || "N/A",
-              "Mobile Number": b.mobile || "N/A",
-              "District": b.district || "Netrokona",
-              "Upazila": b.upazilaName || "Netrokona Sadar",
-              "Union": b.unionName,
-              "Ward": b.wardNo,
-              "Enrolled Programs": schemesList,
-              "Total Monthly Amount (BDT)": totalAmount,
-              "Status": activeEnrollments.length > 1 ? "Multiple Allowances (Duplicate)" : "Single Active",
-            };
+            "SL No": idx + 1,
+            "Beneficiary Name (Bengali)": b.nameBn || b.fullName,
+            "Beneficiary Name (English)": b.nameEn || "",
+            "Father's Name": b.fatherName || b.guardianName,
+            "Date of Birth": dobFormatted || "N/A",
+            "Age": ageVal !== null ? `${ageVal} yrs` : "N/A",
+            "Gender": b.gender,
+            "National ID (NID)": b.nid || "N/A",
+            "Birth Certificate (BRN)": b.brn || "N/A",
+            "Mobile Number": b.mobile || "N/A",
+            "District": b.district || "Netrokona",
+            "Upazila": b.upazilaName || "Netrokona Sadar",
+            "Union": b.unionName,
+            "Ward": b.wardNo,
+            "Enrolled Programs": schemesList,
+            "Total Monthly Amount (BDT)": totalAmount,
+            "Status": activeEnrollments.length > 1 ? "Multiple Allowances (Duplicate)" : "Single Active",
+          };
       });
 
       const worksheet = XLSX.utils.json_to_sheet(exportRows);
@@ -774,6 +834,7 @@ export default function BeneficiariesPage() {
       : schemes;
 
     setCreateForm({
+      departmentId: isDeptOfficer && currentUser.departmentId ? currentUser.departmentId : "",
       nameBn: "",
       nameEn: "",
       fatherName: "",
@@ -786,7 +847,7 @@ export default function BeneficiariesPage() {
       upazilaName: currentUser.upazilaName || "নেত্রকোণা সদর",
       unionName: isUnionViewer && currentUser.unionName ? currentUser.unionName : "",
       wardNo: "",
-      schemeId: deptSchemes[0]?.id || schemes[0]?.id || "",
+      schemeId: isUnionViewer ? "" : (deptSchemes[0]?.id || schemes[0]?.id || ""),
       cardNumber: "",
       startDate: new Date().toISOString().split("T")[0],
     });
@@ -830,13 +891,17 @@ export default function BeneficiariesPage() {
       const data = await res.json();
       if (data.success) {
         setSuccessMessage(
-          language === "bn"
-            ? `নতুন সুবিধাভোগী "${createForm.nameBn}" সফলভাবে অন্তর্ভুক্ত করা হয়েছে।`
-            : `Beneficiary "${createForm.nameBn}" registered successfully.`
+          data.isPending
+            ? (language === "bn"
+              ? `নতুন সুবিধাভোগী আবেদন (${createForm.nameBn}) সফলভাবে দাখিল হয়েছে। এটি সংশ্লিষ্ট দপ্তরের অনুমোদনের জন্য অপেক্ষমান তালিকায় রয়েছে।`
+              : `Application for "${createForm.nameBn}" submitted successfully and is pending officer review.`)
+            : (language === "bn"
+              ? `নতুন সুবিধাভোগী "${createForm.nameBn}" সফলভাবে অন্তর্ভুক্ত করা হয়েছে।`
+              : `Beneficiary "${createForm.nameBn}" registered successfully.`)
         );
-        setTimeout(() => setSuccessMessage(null), 5000);
+        setTimeout(() => setSuccessMessage(null), 6000);
         setIsCreateOpen(false);
-        fetchBeneficiaries();
+        fetchBeneficiaries(1, pageSize);
       } else {
         setCreateError(data.error || "Failed to create beneficiary.");
       }
@@ -1000,17 +1065,16 @@ export default function BeneficiariesPage() {
         <div className="no-print bg-white rounded-2xl p-4 sm:p-5 border border-slate-200 shadow-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
           <div className="flex items-center gap-3">
             <div
-              className={`w-10 h-10 rounded-xl flex items-center justify-center font-bold text-sm ${
-                isSuperAdmin
-                  ? "bg-purple-100 text-purple-700"
-                  : isDistrictAdmin
+              className={`w-10 h-10 rounded-xl flex items-center justify-center font-bold text-sm ${isSuperAdmin
+                ? "bg-purple-100 text-purple-700"
+                : isDistrictAdmin
                   ? "bg-indigo-100 text-indigo-700"
                   : isUpazilaAdmin
-                  ? "bg-emerald-100 text-emerald-700"
-                  : isDeptOfficer
-                  ? "bg-blue-100 text-blue-700"
-                  : "bg-teal-100 text-teal-700"
-              }`}
+                    ? "bg-emerald-100 text-emerald-700"
+                    : isDeptOfficer
+                      ? "bg-blue-100 text-blue-700"
+                      : "bg-teal-100 text-teal-700"
+                }`}
             >
               {isSuperAdmin ? (
                 <ShieldCheck className="w-5 h-5" />
@@ -1030,17 +1094,16 @@ export default function BeneficiariesPage() {
                   {t.common.activeRole}
                 </span>
                 <span
-                  className={`text-xs font-extrabold px-2 py-0.5 rounded-full ${
-                    isSuperAdmin
-                      ? "bg-purple-100 text-purple-800 border border-purple-200"
-                      : isDistrictAdmin
+                  className={`text-xs font-extrabold px-2 py-0.5 rounded-full ${isSuperAdmin
+                    ? "bg-purple-100 text-purple-800 border border-purple-200"
+                    : isDistrictAdmin
                       ? "bg-indigo-100 text-indigo-800 border border-indigo-200"
                       : isUpazilaAdmin
-                      ? "bg-emerald-100 text-emerald-800 border border-emerald-200"
-                      : isDeptOfficer
-                      ? "bg-blue-100 text-blue-800 border border-blue-200"
-                      : "bg-teal-100 text-teal-800 border border-teal-200"
-                  }`}
+                        ? "bg-emerald-100 text-emerald-800 border border-emerald-200"
+                        : isDeptOfficer
+                          ? "bg-blue-100 text-blue-800 border border-blue-200"
+                          : "bg-teal-100 text-teal-800 border border-teal-200"
+                    }`}
                 >
                   {language === "bn" ? currentUser.roleTitleBn : currentUser.roleTitleEn} ({currentUser.name})
                 </span>
@@ -1086,25 +1149,25 @@ export default function BeneficiariesPage() {
             <p className="text-sm text-slate-500 mt-1">
               {isDistrictAdmin || isSuperAdmin
                 ? (language === "bn"
-                    ? "নেত্রকোণা জেলার সকল উপজেলার ভাতাভোগী ও খাদ্য সহায়তা প্রাপ্ত নাগরিকদের সামগ্রিক তালিকা"
-                    : "Central registry of beneficiaries across all upazilas in Netrokona district")
+                  ? "নেত্রকোণা জেলার সকল উপজেলার ভাতাভোগী ও খাদ্য সহায়তা প্রাপ্ত নাগরিকদের সামগ্রিক তালিকা"
+                  : "Central registry of beneficiaries across all upazilas in Netrokona district")
                 : (language === "bn"
-                    ? `${currentUser.upazilaName || "উপজেলা"}-এর সকল ইউনিয়নের ভাতাভোগী ও খাদ্য সহায়তা প্রাপ্ত নাগরিকদের সামগ্রিক তালিকা`
-                    : `Registry of beneficiaries across all unions in ${currentUser.upazilaName || "the upazila"}`)}
+                  ? `${currentUser.upazilaName || "উপজেলা"}-এর সকল ইউনিয়নের ভাতাভোগী ও খাদ্য সহায়তা প্রাপ্ত নাগরিকদের সামগ্রিক তালিকা`
+                  : `Registry of beneficiaries across all unions in ${currentUser.upazilaName || "the upazila"}`)}
             </p>
           </div>
 
           {/* Action Buttons: Add Beneficiary, Excel & Print */}
           <div className="no-print flex items-center gap-2 shrink-0">
-            {!isUnionViewer && (
-              <button
-                onClick={handleOpenCreate}
-                className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-xs transition-all cursor-pointer"
-              >
-                <Plus className="w-4 h-4" />
-                {t.beneficiariesPage.btnAddBeneficiary}
-              </button>
-            )}
+            <button
+              onClick={handleOpenCreate}
+              className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-xs transition-all cursor-pointer"
+            >
+              <Plus className="w-4 h-4" />
+              {isUnionViewer
+                ? (language === "bn" ? "নতুন সুবিধাভোগী আবেদন দাখিল" : "Submit Beneficiary Application")
+                : t.beneficiariesPage.btnAddBeneficiary}
+            </button>
 
             <button
               onClick={handleExportExcel}
@@ -1130,37 +1193,33 @@ export default function BeneficiariesPage() {
           </div>
         </div>
 
-        {/* 4 Interactive Status Filter Cards */}
-        <div className="no-print grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+        {/* 6 Interactive Status Filter Cards */}
+        <div className="no-print grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5 sm:gap-3">
           {/* 1. All Beneficiaries (Blue Accent) */}
           <button
             type="button"
             onClick={() => handleSelectStatus("ALL")}
-            className={`text-left p-4 sm:p-5 rounded-2xl border transition-all cursor-pointer relative overflow-hidden flex flex-col justify-between ${
-              statusFilter === "ALL"
-                ? "bg-blue-50 text-blue-900 border-blue-600 shadow-md ring-2 ring-blue-600 ring-offset-2"
-                : "bg-white text-slate-800 border-slate-200 hover:border-blue-400 hover:bg-blue-50/40 shadow-xs"
-            }`}
+            className={`text-left p-3.5 sm:p-4 rounded-2xl border transition-all cursor-pointer relative overflow-hidden flex flex-col justify-between ${statusFilter === "ALL"
+              ? "bg-blue-50 text-blue-900 border-blue-600 shadow-md ring-2 ring-blue-600 ring-offset-2"
+              : "bg-white text-slate-800 border-slate-200 hover:border-blue-400 hover:bg-blue-50/40 shadow-xs"
+              }`}
           >
             <div className="flex items-center justify-between">
-              <span className={`text-xs font-bold uppercase tracking-wider ${
-                statusFilter === "ALL" ? "text-blue-900" : "text-slate-500"
-              }`}>
-                {language === "bn" ? "সকল সুবিধাভোগী" : "All Beneficiaries"}
+              <span className={`text-[11px] sm:text-xs font-bold uppercase tracking-wider ${statusFilter === "ALL" ? "text-blue-900" : "text-slate-500"
+                }`}>
+                {language === "bn" ? "সকল সুবিধাভোগী" : "All"}
               </span>
-              <div className={`w-9 h-9 rounded-xl flex items-center justify-center transition-colors ${
-                statusFilter === "ALL" ? "bg-blue-600 text-white shadow-xs" : "bg-blue-100 text-blue-700"
-              }`}>
+              <div className={`w-8 h-8 rounded-xl flex items-center justify-center transition-colors ${statusFilter === "ALL" ? "bg-blue-600 text-white shadow-xs" : "bg-blue-100 text-blue-700"
+                }`}>
                 <Users className="w-4 h-4" />
               </div>
             </div>
-            <div className="mt-3 flex items-baseline justify-between">
-              <span className="text-2xl sm:text-3xl font-black tracking-tight">
-                {formatNumber(statsSummary?.totalBeneficiaries ?? statusCounts.all, language)}
+            <div className="mt-2.5 flex items-baseline justify-between">
+              <span className="text-xl sm:text-2xl font-black tracking-tight">
+                {formatNumber(statusCounts.all, language)}
               </span>
-              <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${
-                statusFilter === "ALL" ? "bg-blue-200 text-blue-900 font-bold" : "bg-slate-100 text-slate-600"
-              }`}>
+              <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${statusFilter === "ALL" ? "bg-blue-200 text-blue-900 font-bold" : "bg-slate-100 text-slate-600"
+                }`}>
                 {language === "bn" ? "সর্বমোট" : "Total"}
               </span>
             </div>
@@ -1170,99 +1229,147 @@ export default function BeneficiariesPage() {
           <button
             type="button"
             onClick={() => handleSelectStatus("ACTIVE")}
-            className={`text-left p-4 sm:p-5 rounded-2xl border transition-all cursor-pointer relative overflow-hidden flex flex-col justify-between ${
-              statusFilter === "ACTIVE"
-                ? "bg-emerald-50 text-emerald-900 border-emerald-600 shadow-md ring-2 ring-emerald-600 ring-offset-2"
-                : "bg-white text-slate-800 border-slate-200 hover:border-emerald-400 hover:bg-emerald-50/40 shadow-xs"
-            }`}
+            className={`text-left p-3.5 sm:p-4 rounded-2xl border transition-all cursor-pointer relative overflow-hidden flex flex-col justify-between ${statusFilter === "ACTIVE"
+              ? "bg-emerald-50 text-emerald-900 border-emerald-600 shadow-md ring-2 ring-emerald-600 ring-offset-2"
+              : "bg-white text-slate-800 border-slate-200 hover:border-emerald-400 hover:bg-emerald-50/40 shadow-xs"
+              }`}
           >
             <div className="flex items-center justify-between">
-              <span className={`text-xs font-bold uppercase tracking-wider ${
-                statusFilter === "ACTIVE" ? "text-emerald-900" : "text-emerald-700"
-              }`}>
-                {language === "bn" ? "সক্রিয় সুবিধাভোগী" : "Active Beneficiaries"}
+              <span className={`text-[11px] sm:text-xs font-bold uppercase tracking-wider ${statusFilter === "ACTIVE" ? "text-emerald-900" : "text-emerald-700"
+                }`}>
+                {language === "bn" ? "সক্রিয় ভাতা" : "Active"}
               </span>
-              <div className={`w-9 h-9 rounded-xl flex items-center justify-center transition-colors ${
-                statusFilter === "ACTIVE" ? "bg-emerald-600 text-white shadow-xs" : "bg-emerald-100 text-emerald-700"
-              }`}>
+              <div className={`w-8 h-8 rounded-xl flex items-center justify-center transition-colors ${statusFilter === "ACTIVE" ? "bg-emerald-600 text-white shadow-xs" : "bg-emerald-100 text-emerald-700"
+                }`}>
                 <CheckCircle2 className="w-4 h-4" />
               </div>
             </div>
-            <div className="mt-3 flex items-baseline justify-between">
-              <span className="text-2xl sm:text-3xl font-black tracking-tight">
-                {formatNumber(statsSummary?.activeEnrollments ?? statusCounts.active, language)}
+            <div className="mt-2.5 flex items-baseline justify-between">
+              <span className="text-xl sm:text-2xl font-black tracking-tight">
+                {formatNumber(statusCounts.active, language)}
               </span>
-              <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${
-                statusFilter === "ACTIVE" ? "bg-emerald-200 text-emerald-900 font-bold" : "bg-emerald-100 text-emerald-800"
-              }`}>
-                {language === "bn" ? "সক্রিয় ভাতা" : "Active"}
+              <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${statusFilter === "ACTIVE" ? "bg-emerald-200 text-emerald-900 font-bold" : "bg-emerald-100 text-emerald-800"
+                }`}>
+                {language === "bn" ? "সক্রিয়" : "Active"}
               </span>
             </div>
           </button>
 
-          {/* 3. Cancelled Beneficiaries (Red Accent) */}
+          {/* 3. Pending Applications (Amber Accent) */}
+          <button
+            type="button"
+            onClick={() => handleSelectStatus("PENDING")}
+            className={`text-left p-3.5 sm:p-4 rounded-2xl border transition-all cursor-pointer relative overflow-hidden flex flex-col justify-between ${statusFilter === "PENDING"
+              ? "bg-amber-50 text-amber-950 border-amber-600 shadow-md ring-2 ring-amber-600 ring-offset-2"
+              : "bg-white text-slate-800 border-slate-200 hover:border-amber-400 hover:bg-amber-50/40 shadow-xs"
+              }`}
+          >
+            <div className="flex items-center justify-between">
+              <span className={`text-[11px] sm:text-xs font-bold uppercase tracking-wider ${statusFilter === "PENDING" ? "text-amber-950 font-black" : "text-amber-800"
+                }`}>
+                {language === "bn" ? "অপেক্ষমান আবেদন" : "Pending"}
+              </span>
+              <div className={`w-8 h-8 rounded-xl flex items-center justify-center transition-colors ${statusFilter === "PENDING" ? "bg-amber-600 text-white shadow-xs" : "bg-amber-100 text-amber-800"
+                }`}>
+                <CalendarDays className="w-4 h-4" />
+              </div>
+            </div>
+            <div className="mt-2.5 flex items-baseline justify-between">
+              <span className="text-xl sm:text-2xl font-black tracking-tight text-amber-900">
+                {formatNumber(statusCounts.pending, language)}
+              </span>
+              <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${statusFilter === "PENDING" ? "bg-amber-200 text-amber-950 font-bold" : "bg-amber-100 text-amber-800"
+                }`}>
+                {language === "bn" ? "অপেক্ষমান" : "Pending"}
+              </span>
+            </div>
+          </button>
+
+          {/* 4. Cancelled Beneficiaries (Rose Accent) */}
           <button
             type="button"
             onClick={() => handleSelectStatus("SUSPENDED")}
-            className={`text-left p-4 sm:p-5 rounded-2xl border transition-all cursor-pointer relative overflow-hidden flex flex-col justify-between ${
-              statusFilter === "SUSPENDED"
-                ? "bg-rose-50 text-rose-900 border-rose-600 shadow-md ring-2 ring-rose-600 ring-offset-2"
-                : "bg-white text-slate-800 border-slate-200 hover:border-rose-400 hover:bg-rose-50/40 shadow-xs"
-            }`}
+            className={`text-left p-3.5 sm:p-4 rounded-2xl border transition-all cursor-pointer relative overflow-hidden flex flex-col justify-between ${statusFilter === "SUSPENDED"
+              ? "bg-rose-50 text-rose-900 border-rose-600 shadow-md ring-2 ring-rose-600 ring-offset-2"
+              : "bg-white text-slate-800 border-slate-200 hover:border-rose-400 hover:bg-rose-50/40 shadow-xs"
+              }`}
           >
             <div className="flex items-center justify-between">
-              <span className={`text-xs font-bold uppercase tracking-wider ${
-                statusFilter === "SUSPENDED" ? "text-rose-900" : "text-rose-700"
-              }`}>
-                {language === "bn" ? "বাতিলকৃত সুবিধাভোগী" : "Cancelled Beneficiaries"}
+              <span className={`text-[11px] sm:text-xs font-bold uppercase tracking-wider ${statusFilter === "SUSPENDED" ? "text-rose-900" : "text-rose-700"
+                }`}>
+                {language === "bn" ? "বাতিলকৃত ভাতা" : "Suspended"}
               </span>
-              <div className={`w-9 h-9 rounded-xl flex items-center justify-center transition-colors ${
-                statusFilter === "SUSPENDED" ? "bg-rose-600 text-white shadow-xs" : "bg-rose-100 text-rose-700"
-              }`}>
+              <div className={`w-8 h-8 rounded-xl flex items-center justify-center transition-colors ${statusFilter === "SUSPENDED" ? "bg-rose-600 text-white shadow-xs" : "bg-rose-100 text-rose-700"
+                }`}>
                 <Ban className="w-4 h-4" />
               </div>
             </div>
-            <div className="mt-3 flex items-baseline justify-between">
-              <span className="text-2xl sm:text-3xl font-black tracking-tight">
-                {formatNumber(statsSummary?.suspendedEnrollments ?? statusCounts.suspended, language)}
+            <div className="mt-2.5 flex items-baseline justify-between">
+              <span className="text-xl sm:text-2xl font-black tracking-tight">
+                {formatNumber(statusCounts.suspended, language)}
               </span>
-              <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${
-                statusFilter === "SUSPENDED" ? "bg-rose-200 text-rose-900 font-bold" : "bg-rose-100 text-rose-800"
-              }`}>
-                {language === "bn" ? "বাতিলকৃত" : "Cancelled"}
+              <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${statusFilter === "SUSPENDED" ? "bg-rose-200 text-rose-900 font-bold" : "bg-rose-100 text-rose-800"
+                }`}>
+                {language === "bn" ? "ইউএনও অনুমোদিত" : "Cancelled"}
               </span>
             </div>
           </button>
 
-          {/* 4. Archived Beneficiaries (Slate Accent) */}
+          {/* 5. Rejected Applications (Red Accent) */}
+          <button
+            type="button"
+            onClick={() => handleSelectStatus("REJECTED")}
+            className={`text-left p-3.5 sm:p-4 rounded-2xl border transition-all cursor-pointer relative overflow-hidden flex flex-col justify-between ${statusFilter === "REJECTED"
+              ? "bg-red-50 text-red-950 border-red-600 shadow-md ring-2 ring-red-600 ring-offset-2"
+              : "bg-white text-slate-800 border-slate-200 hover:border-red-400 hover:bg-red-50/40 shadow-xs"
+              }`}
+          >
+            <div className="flex items-center justify-between">
+              <span className={`text-[11px] sm:text-xs font-bold uppercase tracking-wider ${statusFilter === "REJECTED" ? "text-red-950 font-black" : "text-red-800"
+                }`}>
+                {language === "bn" ? "প্রত্যাখ্যাত আবেদন" : "Rejected"}
+              </span>
+              <div className={`w-8 h-8 rounded-xl flex items-center justify-center transition-colors ${statusFilter === "REJECTED" ? "bg-red-700 text-white shadow-xs" : "bg-red-100 text-red-800"
+                }`}>
+                <X className="w-4 h-4" />
+              </div>
+            </div>
+            <div className="mt-2.5 flex items-baseline justify-between">
+              <span className="text-xl sm:text-2xl font-black tracking-tight text-red-900">
+                {formatNumber(statusCounts.rejected, language)}
+              </span>
+              <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${statusFilter === "REJECTED" ? "bg-red-200 text-red-950 font-bold" : "bg-red-100 text-red-800"
+                }`}>
+                {language === "bn" ? "বাতিল আবেদন" : "Rejected"}
+              </span>
+            </div>
+          </button>
+
+          {/* 6. Archived Beneficiaries (Slate Accent) */}
           <button
             type="button"
             onClick={() => handleSelectStatus("ARCHIVED")}
-            className={`text-left p-4 sm:p-5 rounded-2xl border transition-all cursor-pointer relative overflow-hidden flex flex-col justify-between ${
-              statusFilter === "ARCHIVED"
-                ? "bg-slate-100 text-slate-900 border-slate-600 shadow-md ring-2 ring-slate-600 ring-offset-2"
-                : "bg-white text-slate-800 border-slate-200 hover:border-slate-400 hover:bg-slate-50 shadow-xs"
-            }`}
+            className={`text-left p-3.5 sm:p-4 rounded-2xl border transition-all cursor-pointer relative overflow-hidden flex flex-col justify-between ${statusFilter === "ARCHIVED"
+              ? "bg-slate-100 text-slate-900 border-slate-600 shadow-md ring-2 ring-slate-600 ring-offset-2"
+              : "bg-white text-slate-800 border-slate-200 hover:border-slate-400 hover:bg-slate-50 shadow-xs"
+              }`}
           >
             <div className="flex items-center justify-between">
-              <span className={`text-xs font-bold uppercase tracking-wider ${
-                statusFilter === "ARCHIVED" ? "text-slate-900" : "text-slate-600"
-              }`}>
-                {language === "bn" ? "আর্কাইভ সুবিধাভোগী" : "Archived Beneficiaries"}
+              <span className={`text-[11px] sm:text-xs font-bold uppercase tracking-wider ${statusFilter === "ARCHIVED" ? "text-slate-900" : "text-slate-600"
+                }`}>
+                {language === "bn" ? "আর্কাইভ সুবিধাভোগী" : "Archived"}
               </span>
-              <div className={`w-9 h-9 rounded-xl flex items-center justify-center transition-colors ${
-                statusFilter === "ARCHIVED" ? "bg-slate-700 text-white shadow-xs" : "bg-slate-200 text-slate-700"
-              }`}>
+              <div className={`w-8 h-8 rounded-xl flex items-center justify-center transition-colors ${statusFilter === "ARCHIVED" ? "bg-slate-700 text-white shadow-xs" : "bg-slate-200 text-slate-700"
+                }`}>
                 <FolderArchive className="w-4 h-4" />
               </div>
             </div>
-            <div className="mt-3 flex items-baseline justify-between">
-              <span className="text-2xl sm:text-3xl font-black tracking-tight">
-                {formatNumber(statsSummary?.archivedEnrollments ?? statusCounts.archived, language)}
+            <div className="mt-2.5 flex items-baseline justify-between">
+              <span className="text-xl sm:text-2xl font-black tracking-tight">
+                {formatNumber(statusCounts.archived, language)}
               </span>
-              <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${
-                statusFilter === "ARCHIVED" ? "bg-slate-300 text-slate-900 font-bold" : "bg-slate-200 text-slate-700"
-              }`}>
+              <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${statusFilter === "ARCHIVED" ? "bg-slate-300 text-slate-900 font-bold" : "bg-slate-200 text-slate-700"
+                }`}>
                 {language === "bn" ? "আর্কাইভ" : "Archived"}
               </span>
             </div>
@@ -1282,10 +1389,10 @@ export default function BeneficiariesPage() {
                 {isDistrictAdmin || isSuperAdmin
                   ? (language === "bn" ? "জেলা পর্যায় ফিল্টার" : "District Level Scope")
                   : isUpazilaAdmin
-                  ? (language === "bn" ? `উপজেলা পর্যায় (${currentUser.upazilaName || "উপজেলা"})` : `Upazila Scope (${currentUser.upazilaName})`)
-                  : isDeptOfficer
-                  ? (language === "bn" ? `দপ্তর পর্যায় (${currentUser.departmentName || "দপ্তর"})` : `Department Scope (${currentUser.departmentName})`)
-                  : (language === "bn" ? `ইউনিয়ন পর্যায় (${currentUser.unionName || "ইউনিয়ন"})` : `Union Scope (${currentUser.unionName})`)
+                    ? (language === "bn" ? `উপজেলা পর্যায় (${currentUser.upazilaName || "উপজেলা"})` : `Upazila Scope (${currentUser.upazilaName})`)
+                    : isDeptOfficer
+                      ? (language === "bn" ? `দপ্তর পর্যায় (${currentUser.departmentName || "দপ্তর"})` : `Department Scope (${currentUser.departmentName})`)
+                      : (language === "bn" ? `ইউনিয়ন পর্যায় (${currentUser.unionName || "ইউনিয়ন"})` : `Union Scope (${currentUser.unionName})`)
                 }
                 )
               </span>
@@ -1297,6 +1404,7 @@ export default function BeneficiariesPage() {
                 type="button"
                 onClick={() => {
                   setSearch("");
+                  setSearchInput("");
                   if (isDistrictAdmin || isSuperAdmin) setUpazila("");
                   if (!isDeptOfficer) setSelectedDeptId("");
                   setSelectedSchemeId("");
@@ -1386,8 +1494,8 @@ export default function BeneficiariesPage() {
                   <input
                     type="text"
                     placeholder={t.beneficiariesPage.searchPlaceholder}
-                    value={search}
-                    onChange={(e) => setSearch(e.target.value)}
+                    value={searchInput}
+                    onChange={(e) => setSearchInput(e.target.value)}
                     className="w-full min-h-[42px] pl-9 pr-3 py-2 rounded-xl border border-slate-300 text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-emerald-600 bg-white"
                   />
                 </div>
@@ -1446,8 +1554,8 @@ export default function BeneficiariesPage() {
                   <input
                     type="text"
                     placeholder={t.beneficiariesPage.searchPlaceholder}
-                    value={search}
-                    onChange={(e) => setSearch(e.target.value)}
+                    value={searchInput}
+                    onChange={(e) => setSearchInput(e.target.value)}
                     className="w-full min-h-[42px] pl-9 pr-3 py-2 rounded-xl border border-slate-300 text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-emerald-600 bg-white"
                   />
                 </div>
@@ -1525,8 +1633,8 @@ export default function BeneficiariesPage() {
                   <input
                     type="text"
                     placeholder={t.beneficiariesPage.searchPlaceholder}
-                    value={search}
-                    onChange={(e) => setSearch(e.target.value)}
+                    value={searchInput}
+                    onChange={(e) => setSearchInput(e.target.value)}
                     className="w-full min-h-[42px] pl-9 pr-3 py-2 rounded-xl border border-slate-300 text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-emerald-600 bg-white"
                   />
                 </div>
@@ -1566,8 +1674,8 @@ export default function BeneficiariesPage() {
                   <input
                     type="text"
                     placeholder={t.beneficiariesPage.searchPlaceholder}
-                    value={search}
-                    onChange={(e) => setSearch(e.target.value)}
+                    value={searchInput}
+                    onChange={(e) => setSearchInput(e.target.value)}
                     className="w-full min-h-[42px] pl-9 pr-3 py-2 rounded-xl border border-slate-300 text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-emerald-600 bg-white"
                   />
                 </div>
@@ -1622,8 +1730,8 @@ export default function BeneficiariesPage() {
               {isDeptOfficer
                 ? (language === "bn" ? "আপনার দপ্তরের কোন সুবিধাভোগী পাওয়া যায়নি।" : "No beneficiaries found enrolled in your department.")
                 : isUnionViewer
-                ? (language === "bn" ? "আপনার ইউনিয়নের তালিকায় কোন সুবিধাভোগী পাওয়া যায়নি।" : "No beneficiaries found within your assigned union.")
-                : (language === "bn" ? "কোনো সুবিধাভোগী রেকর্ড পাওয়া যায়নি।" : "No citizen records found matching current criteria.")}
+                  ? (language === "bn" ? "আপনার ইউনিয়নের তালিকায় কোন সুবিধাভোগী পাওয়া যায়নি।" : "No beneficiaries found within your assigned union.")
+                  : (language === "bn" ? "কোনো সুবিধাভোগী রেকর্ড পাওয়া যায়নি।" : "No citizen records found matching current criteria.")}
             </p>
           </div>
         ) : (
@@ -1672,9 +1780,7 @@ export default function BeneficiariesPage() {
                     <th className="py-3 px-4">{t.beneficiariesPage.colLocation}</th>
                     <th className="py-3 px-4">{t.beneficiariesPage.colEnrolledPrograms}</th>
                     <th className="py-3 px-4">{t.dashboard.colTotalReceived}</th>
-                    {!isUnionViewer && (
-                      <th className="no-print py-3 px-4 text-right">{language === "bn" ? "সম্পাদনা" : t.beneficiariesPage.colActions}</th>
-                    )}
+                    <th className="no-print py-3 px-4 text-right">{language === "bn" ? "অ্যাকশন / অবস্থা" : t.beneficiariesPage.colActions}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 text-slate-800">
@@ -1712,8 +1818,8 @@ export default function BeneficiariesPage() {
                               {b.gender === "Female"
                                 ? t.common.female
                                 : b.gender === "Male"
-                                ? t.common.male
-                                : t.common.other}
+                                  ? t.common.male
+                                  : t.common.other}
                             </span>
                             {dobStr && (
                               <>
@@ -1740,8 +1846,8 @@ export default function BeneficiariesPage() {
                                 {b.nid.length === 10
                                   ? (language === "bn" ? "স্মার্টকার্ড" : "Smart Card")
                                   : b.nid.length === 17
-                                  ? (language === "bn" ? "১৭ ডিজিট এনআইডি" : "Barcode NID")
-                                  : (language === "bn" ? "পুরাতন এনআইডি" : "Legacy NID")}
+                                    ? (language === "bn" ? "১৭ ডিজিট এনআইডি" : "Barcode NID")
+                                    : (language === "bn" ? "পুরাতন এনআইডি" : "Legacy NID")}
                               </div>
                             </div>
                           ) : b.brn ? (
@@ -1779,11 +1885,10 @@ export default function BeneficiariesPage() {
                             return (
                               <div key={enr.id} className="mb-1.5 last:mb-0">
                                 <div
-                                  className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-[11px] border ${
-                                    isEnrArchived
-                                      ? "bg-purple-50 border-purple-200"
-                                      : "bg-slate-100 border-slate-200"
-                                  }`}
+                                  className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-[11px] border ${isEnrArchived
+                                    ? "bg-purple-50 border-purple-200"
+                                    : "bg-slate-100 border-slate-200"
+                                    }`}
                                 >
                                   <span className="font-medium text-slate-800">
                                     {getSchemeName(enr.scheme, language)}
@@ -1797,25 +1902,41 @@ export default function BeneficiariesPage() {
                                     </span>
                                   )}
                                   <span
-                                    className={`text-[9px] px-1 rounded uppercase font-bold ${
-                                      isEnrArchived
-                                        ? "bg-purple-200 text-purple-900 border border-purple-300"
-                                        : enr.status === "Active"
-                                        ? "bg-emerald-200 text-emerald-900"
-                                        : enr.status === "Flagged"
-                                        ? "bg-red-200 text-red-900"
-                                        : "bg-slate-300 text-slate-700"
-                                    }`}
+                                    className={`text-[9px] px-1 rounded uppercase font-bold ${enr.status === "PENDING"
+                                      ? "bg-amber-100 text-amber-900 border border-amber-300"
+                                      : enr.status === "REJECTED"
+                                        ? "bg-red-100 text-red-900 border border-red-300"
+                                        : isEnrArchived
+                                          ? "bg-purple-200 text-purple-900 border border-purple-300"
+                                          : enr.status === "Active"
+                                            ? "bg-emerald-200 text-emerald-900"
+                                            : enr.status === "Flagged"
+                                              ? "bg-red-200 text-red-900"
+                                              : "bg-slate-300 text-slate-700"
+                                      }`}
                                   >
-                                    {isEnrArchived
-                                      ? (language === "bn" ? "আর্কাইভকৃত" : "Archived")
-                                      : enr.status === "Active"
-                                      ? t.beneficiariesPage.statusActive
-                                      : enr.status === "Suspended"
-                                      ? t.beneficiariesPage.statusSuspended
-                                      : enr.status}
+                                    {enr.status === "PENDING"
+                                      ? (language === "bn" ? "অপেক্ষমান" : "Pending")
+                                      : enr.status === "REJECTED"
+                                        ? (language === "bn" ? "বাতিল আবেদন" : "Rejected")
+                                        : isEnrArchived
+                                          ? (language === "bn" ? "আর্কাইভকৃত" : "Archived")
+                                          : enr.status === "Active"
+                                            ? t.beneficiariesPage.statusActive
+                                            : enr.status === "Suspended"
+                                              ? t.beneficiariesPage.statusSuspended
+                                              : enr.status}
                                   </span>
                                 </div>
+                                {enr.status === "REJECTED" && noteText && (
+                                  <div className="mt-0.5 text-[10px] text-red-700 bg-red-50/80 rounded px-1.5 py-0.5 border border-red-200/80 flex items-center gap-1 max-w-[280px]">
+                                    <X className="w-3 h-3 shrink-0 text-red-600" />
+                                    <span className="truncate" title={noteText}>
+                                      <span className="font-semibold">{language === "bn" ? "বাতিলের কারণ: " : "Rejection: "}</span>
+                                      {noteText}
+                                    </span>
+                                  </div>
+                                )}
                                 {isEnrArchived && noteText && (
                                   <div className="mt-0.5 text-[10px] text-purple-700 bg-purple-50/80 rounded px-1.5 py-0.5 border border-purple-200/80 flex items-center gap-1 max-w-[280px]">
                                     <FolderArchive className="w-3 h-3 shrink-0 text-purple-600" />
@@ -1824,10 +1945,10 @@ export default function BeneficiariesPage() {
                                         {reasonText === "DECEASED"
                                           ? (language === "bn" ? "মৃত: " : "Deceased: ")
                                           : reasonText === "BENEFIT_EXPIRED"
-                                          ? (language === "bn" ? "মেয়াদ শেষ: " : "Expired: ")
-                                          : reasonText === "DEPT_REMOVAL"
-                                          ? (language === "bn" ? "অপসারণ: " : "Removed: ")
-                                          : (language === "bn" ? "নোট: " : "Note: ")}
+                                            ? (language === "bn" ? "মেয়াদ শেষ: " : "Expired: ")
+                                            : reasonText === "DEPT_REMOVAL"
+                                              ? (language === "bn" ? "অপসারণ: " : "Removed: ")
+                                              : (language === "bn" ? "নোট: " : "Note: ")}
                                       </span>
                                       {noteText}
                                     </span>
@@ -1856,39 +1977,92 @@ export default function BeneficiariesPage() {
                           )}
                         </td>
 
-                        {/* Actions Column: Edit, Archive / Restore */}
-                        {!isUnionViewer && (
-                          <td className="no-print py-3.5 px-4 text-right space-x-1.5 whitespace-nowrap">
-                            <button
-                              onClick={() => handleOpenEdit(b)}
-                              title={t.beneficiariesPage.btnEdit}
-                              className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-bold border border-blue-200 transition-colors cursor-pointer shadow-xs"
-                            >
-                              <Edit2 className="w-3.5 h-3.5" />
-                              <span>{t.beneficiariesPage.btnEdit}</span>
-                            </button>
+                        {/* Actions Column: Edit, Archive / Restore or Review Approval */}
+                        <td className="no-print py-3.5 px-4 text-right space-x-1.5 whitespace-nowrap">
+                          {(() => {
+                            const pendingEnr = b.enrollments.find((e) => e.status === "PENDING");
+                            const rejectedEnr = b.enrollments.find((e) => e.status === "REJECTED");
 
-                            {b.isArchived ? (
-                              <button
-                                onClick={() => handleRestoreFromArchive(b.id)}
-                                title={language === "bn" ? "আর্কাইভ থেকে সক্রিয় করুন" : "Restore from archive"}
-                                className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-xs font-bold border border-emerald-200 transition-colors cursor-pointer shadow-xs"
-                              >
-                                <RotateCcw className="w-3.5 h-3.5" />
-                                <span>{language === "bn" ? "পুনরুদ্ধার" : "Restore"}</span>
-                              </button>
-                            ) : (
-                              <button
-                                onClick={() => handleOpenArchive(b)}
-                                title={language === "bn" ? "নোট দিয়ে আর্কাইভ করুন" : "Archive with note"}
-                                className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-purple-50 hover:bg-purple-100 text-purple-700 text-xs font-bold border border-purple-200 transition-colors cursor-pointer shadow-xs"
-                              >
-                                <FolderArchive className="w-3.5 h-3.5" />
-                                <span>{language === "bn" ? "আর্কাইভ" : "Archive"}</span>
-                              </button>
-                            )}
-                          </td>
-                        )}
+                            if (pendingEnr) {
+                              if (isUnionViewer) {
+                                return (
+                                  <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-amber-50 text-amber-800 border border-amber-300 text-xs font-semibold">
+                                    <Clock className="w-3.5 h-3.5 text-amber-600" />
+                                    <span>{language === "bn" ? "দপ্তরে অপেক্ষমান" : "Pending Approval"}</span>
+                                  </span>
+                                );
+                              }
+                              return (
+                                <div className="inline-flex items-center gap-1.5">
+                                  <button
+                                    onClick={() => handleOpenReview(pendingEnr.id, "approve", b, pendingEnr)}
+                                    title={language === "bn" ? "আবেদন অনুমোদন করুন" : "Approve Application"}
+                                    className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-xs transition-colors cursor-pointer"
+                                  >
+                                    <Check className="w-3.5 h-3.5" />
+                                    <span>{language === "bn" ? "অনুমোদন" : "Approve"}</span>
+                                  </button>
+                                  <button
+                                    onClick={() => handleOpenReview(pendingEnr.id, "reject", b, pendingEnr)}
+                                    title={language === "bn" ? "আবেদন বাতিল করুন" : "Reject Application"}
+                                    className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-red-600 hover:bg-red-700 text-white text-xs font-bold shadow-xs transition-colors cursor-pointer"
+                                  >
+                                    <X className="w-3.5 h-3.5" />
+                                    <span>{language === "bn" ? "বাতিল" : "Reject"}</span>
+                                  </button>
+                                </div>
+                              );
+                            }
+
+                            if (rejectedEnr && !b.enrollments.some((e) => e.status === "Active" || e.status === "Flagged")) {
+                              return (
+                                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-red-50 text-red-800 border border-red-200 text-xs font-medium">
+                                  <X className="w-3.5 h-3.5 text-red-600" />
+                                  <span>{language === "bn" ? "বাতিলকৃত আবেদন" : "Rejected"}</span>
+                                </span>
+                              );
+                            }
+
+                            if (isUnionViewer) {
+                              return (
+                                <span className="text-slate-400 text-xs font-mono">—</span>
+                              );
+                            }
+
+                            return (
+                              <>
+                                <button
+                                  onClick={() => handleOpenEdit(b)}
+                                  title={t.beneficiariesPage.btnEdit}
+                                  className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-bold border border-blue-200 transition-colors cursor-pointer shadow-xs"
+                                >
+                                  <Edit2 className="w-3.5 h-3.5" />
+                                  <span>{t.beneficiariesPage.btnEdit}</span>
+                                </button>
+
+                                {b.isArchived ? (
+                                  <button
+                                    onClick={() => handleRestoreFromArchive(b.id)}
+                                    title={language === "bn" ? "আর্কাইভ থেকে সক্রিয় করুন" : "Restore from archive"}
+                                    className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-xs font-bold border border-emerald-200 transition-colors cursor-pointer shadow-xs"
+                                  >
+                                    <RotateCcw className="w-3.5 h-3.5" />
+                                    <span>{language === "bn" ? "পুনরুদ্ধার" : "Restore"}</span>
+                                  </button>
+                                ) : (
+                                  <button
+                                    onClick={() => handleOpenArchive(b)}
+                                    title={language === "bn" ? "নোট দিয়ে আর্কাইভ করুন" : "Archive with note"}
+                                    className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-purple-50 hover:bg-purple-100 text-purple-700 text-xs font-bold border border-purple-200 transition-colors cursor-pointer shadow-xs"
+                                  >
+                                    <FolderArchive className="w-3.5 h-3.5" />
+                                    <span>{language === "bn" ? "আর্কাইভ" : "Archive"}</span>
+                                  </button>
+                                )}
+                              </>
+                            );
+                          })()}
+                        </td>
                       </tr>
                     );
                   })}
@@ -1973,11 +2147,10 @@ export default function BeneficiariesPage() {
                           type="button"
                           onClick={() => setCurrentPage(Number(pg))}
                           disabled={loading}
-                          className={`min-w-[32px] h-8 px-2 rounded-lg text-xs font-bold transition-all ${
-                            currentPage === pg
-                              ? "bg-emerald-700 text-white shadow-xs"
-                              : "border border-slate-200 bg-white text-slate-700 hover:bg-slate-100"
-                          }`}
+                          className={`min-w-[32px] h-8 px-2 rounded-lg text-xs font-bold transition-all ${currentPage === pg
+                            ? "bg-emerald-700 text-white shadow-xs"
+                            : "border border-slate-200 bg-white text-slate-700 hover:bg-slate-100"
+                            }`}
                         >
                           {formatNumber(Number(pg), language)}
                         </button>
@@ -2021,7 +2194,9 @@ export default function BeneficiariesPage() {
               <div className="flex items-center gap-2">
                 <Plus className="w-5 h-5 text-emerald-600" />
                 <h3 className="font-bold text-slate-900 text-sm sm:text-base">
-                  {t.beneficiariesPage.createModalTitle}
+                  {isUnionViewer
+                    ? (language === "bn" ? "নতুন সুবিধাভোগী আবেদন দাখিল করুন" : "Submit Beneficiary Application")
+                    : t.beneficiariesPage.createModalTitle}
                 </h3>
               </div>
               <button
@@ -2116,15 +2291,29 @@ export default function BeneficiariesPage() {
                   </div>
                 )}
 
-                {/* File Upload Zone */}
-                <div className="flex flex-col sm:flex-row items-center gap-3">
-                  <label className="flex-1 w-full min-h-[44px] flex items-center justify-center gap-2 px-3 py-2 rounded-xl border-2 border-dashed border-emerald-300 bg-white/80 hover:bg-emerald-50/50 cursor-pointer transition-colors text-xs font-semibold text-emerald-800">
-                    <UploadCloud className="w-4 h-4 text-emerald-600" />
-                    <span>
-                      {nidImagePreview
-                        ? (language === "bn" ? "অন্য ছবি নির্বাচন করুন" : "Change NID Image")
-                        : (language === "bn" ? "এনআইডি কার্ডের ছবি সিলেক্ট করুন" : "Upload NID Card Photo")}
-                    </span>
+                {/* Dual Input: Live Mobile Camera & Gallery File Upload */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                  {/* Option 1: Live Mobile Camera */}
+                  <label className="flex items-center justify-center gap-2 px-3.5 py-2.5 rounded-xl bg-gradient-to-r from-emerald-700 to-teal-800 hover:from-emerald-800 hover:to-teal-900 text-white font-bold text-xs cursor-pointer shadow-xs transition-all active:scale-[0.98]">
+                    <Camera className="w-4 h-4 text-emerald-200" />
+                    <span>{language === "bn" ? "ক্যামেরা দিয়ে ছবি তুলুন" : "Take Photo with Camera"}</span>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      capture="environment"
+                      className="hidden"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) handleScanNidImage(file);
+                        e.target.value = "";
+                      }}
+                    />
+                  </label>
+
+                  {/* Option 2: Gallery File Browse */}
+                  <label className="flex items-center justify-center gap-2 px-3.5 py-2.5 rounded-xl bg-white hover:bg-slate-50 text-slate-800 font-bold text-xs cursor-pointer border-2 border-dashed border-emerald-300 shadow-xs transition-all active:scale-[0.98]">
+                    <UploadCloud className="w-4 h-4 text-emerald-700" />
+                    <span>{language === "bn" ? "গ্যালারি / ছবি ব্রাউজ করুন" : "Browse from Gallery"}</span>
                     <input
                       type="file"
                       accept="image/*"
@@ -2132,13 +2321,16 @@ export default function BeneficiariesPage() {
                       onChange={(e) => {
                         const file = e.target.files?.[0];
                         if (file) handleScanNidImage(file);
+                        e.target.value = "";
                       }}
                     />
                   </label>
+                </div>
 
-                  {nidImagePreview && (
-                    <div className="flex items-center gap-2 shrink-0">
-                      <div className="w-11 h-9 rounded-lg border border-slate-300 overflow-hidden bg-slate-100 relative shadow-xs">
+                {nidImagePreview && (
+                  <div className="flex items-center justify-between p-2.5 bg-slate-50 rounded-xl border border-slate-200">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-12 h-10 rounded-lg border border-slate-300 overflow-hidden bg-slate-100 relative shadow-xs">
                         {/* eslint-disable-next-line @next/next/no-img-element */}
                         <img
                           src={nidImagePreview}
@@ -2146,20 +2338,23 @@ export default function BeneficiariesPage() {
                           className="w-full h-full object-cover"
                         />
                       </div>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setNidImagePreview(null);
-                          setNidScanSuccess(false);
-                          setNidScanError(null);
-                        }}
-                        className="text-[11px] text-red-600 hover:text-red-800 font-medium cursor-pointer"
-                      >
-                        {language === "bn" ? "মুছে ফেলুন" : "Remove"}
-                      </button>
+                      <span className="text-xs font-semibold text-slate-700">
+                        {language === "bn" ? "এনআইডি কার্ডের ছবি সংযুক্ত রয়েছে" : "NID Card Attached"}
+                      </span>
                     </div>
-                  )}
-                </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setNidImagePreview(null);
+                        setNidScanSuccess(false);
+                        setNidScanError(null);
+                      }}
+                      className="text-xs text-red-600 hover:text-red-800 font-semibold cursor-pointer px-2 py-1 rounded-lg hover:bg-red-50 transition-colors"
+                    >
+                      {language === "bn" ? "মুছে ফেলুন" : "Remove"}
+                    </button>
+                  </div>
+                )}
 
                 {/* Scan Status / Alerts */}
                 {nidScanning && (
@@ -2350,11 +2545,10 @@ export default function BeneficiariesPage() {
                       });
                     }}
                     disabled={!isSuperAdmin && Boolean(currentUser.upazilaName)}
-                    className={`w-full px-3 py-2 rounded-xl border text-xs bg-white font-medium focus:ring-2 focus:ring-emerald-500 focus:outline-none ${
-                      !isSuperAdmin && currentUser.upazilaName
-                        ? "bg-slate-100 text-slate-600 cursor-not-allowed border-slate-300"
-                        : "border-slate-300"
-                    }`}
+                    className={`w-full px-3 py-2 rounded-xl border text-xs bg-white font-medium focus:ring-2 focus:ring-emerald-500 focus:outline-none ${!isSuperAdmin && currentUser.upazilaName
+                      ? "bg-slate-100 text-slate-600 cursor-not-allowed border-slate-300"
+                      : "border-slate-300"
+                      }`}
                   >
                     {NETROKONA_UPAZILAS.map((up) => (
                       <option key={up.key} value={up.nameBn}>
@@ -2374,9 +2568,8 @@ export default function BeneficiariesPage() {
                     value={createForm.unionName}
                     onChange={(e) => setCreateForm({ ...createForm, unionName: e.target.value })}
                     disabled={isUnionViewer}
-                    className={`w-full px-3 py-2 rounded-xl border text-xs bg-white focus:ring-2 focus:ring-emerald-500 focus:outline-none ${
-                      isUnionViewer ? "bg-slate-100 cursor-not-allowed border-slate-300" : "border-slate-300"
-                    }`}
+                    className={`w-full px-3 py-2 rounded-xl border text-xs bg-white focus:ring-2 focus:ring-emerald-500 focus:outline-none ${isUnionViewer ? "bg-slate-100 cursor-not-allowed border-slate-300" : "border-slate-300"
+                      }`}
                   >
                     <option value="">
                       {language === "bn" ? "-- ইউনিয়ন নির্বাচন করুন --" : "-- Select Union --"}
@@ -2407,20 +2600,61 @@ export default function BeneficiariesPage() {
                   />
                 </div>
 
+                {/* Department Selection (Available for Union Viewers & Admins) */}
+                {!isDeptOfficer && (
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">
+                      {language === "bn" ? "সংশ্লিষ্ট দপ্তর" : "Department"} {isUnionViewer && "*"}
+                    </label>
+                    <select
+                      value={createForm.departmentId}
+                      onChange={(e) => {
+                        const deptId = e.target.value;
+                        setCreateForm({
+                          ...createForm,
+                          departmentId: deptId,
+                          schemeId: "",
+                        });
+                      }}
+                      className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs bg-white focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                    >
+                      <option value="">
+                        {language === "bn" ? "-- সকল দপ্তর / নির্বাচন করুন --" : "-- All Departments --"}
+                      </option>
+                      {departments.map((d) => (
+                        <option key={d.id} value={d.id}>
+                          {getDepartmentName(d, language)}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+
                 {/* Welfare Scheme */}
                 <div>
                   <label className="block text-xs font-bold text-slate-700 mb-1">
-                    {t.beneficiariesPage.fieldScheme}
+                    {t.beneficiariesPage.fieldScheme} {isUnionViewer && "*"}
                   </label>
                   <select
+                    required={isUnionViewer}
                     value={createForm.schemeId}
-                    onChange={(e) => setCreateForm({ ...createForm, schemeId: e.target.value })}
+                    onChange={(e) => {
+                      const scId = e.target.value;
+                      const sc = schemes.find((s) => s.id === scId);
+                      setCreateForm({
+                        ...createForm,
+                        schemeId: scId,
+                        departmentId: sc ? sc.departmentId : createForm.departmentId,
+                      });
+                    }}
                     className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs bg-white focus:ring-2 focus:ring-emerald-500 focus:outline-none"
                   >
                     <option value="">{t.beneficiariesPage.selectScheme}</option>
                     {(isDeptOfficer && currentUser.departmentId
                       ? schemes.filter((s) => s.departmentId === currentUser.departmentId)
-                      : schemes
+                      : createForm.departmentId
+                        ? schemes.filter((s) => s.departmentId === createForm.departmentId)
+                        : schemes
                     ).map((s) => (
                       <option key={s.id} value={s.id}>
                         {getSchemeName(s, language)} ({getDepartmentName(s.department, language)})
@@ -2481,7 +2715,9 @@ export default function BeneficiariesPage() {
                   ) : (
                     <Check className="w-4 h-4" />
                   )}
-                  {t.beneficiariesPage.btnSave}
+                  {isUnionViewer
+                    ? (language === "bn" ? "আবেদন দাখিল করুন" : "Submit Application")
+                    : t.beneficiariesPage.btnSave}
                 </button>
               </div>
             </form>
@@ -2669,11 +2905,10 @@ export default function BeneficiariesPage() {
                       });
                     }}
                     disabled={!isSuperAdmin && Boolean(currentUser.upazilaName)}
-                    className={`w-full px-3 py-2 rounded-xl border text-xs bg-white font-medium focus:ring-2 focus:ring-emerald-500 focus:outline-none ${
-                      !isSuperAdmin && currentUser.upazilaName
-                        ? "bg-slate-100 text-slate-600 cursor-not-allowed border-slate-300"
-                        : "border-slate-300"
-                    }`}
+                    className={`w-full px-3 py-2 rounded-xl border text-xs bg-white font-medium focus:ring-2 focus:ring-emerald-500 focus:outline-none ${!isSuperAdmin && currentUser.upazilaName
+                      ? "bg-slate-100 text-slate-600 cursor-not-allowed border-slate-300"
+                      : "border-slate-300"
+                      }`}
                   >
                     {NETROKONA_UPAZILAS.map((up) => (
                       <option key={up.key} value={up.nameBn}>
@@ -2693,9 +2928,8 @@ export default function BeneficiariesPage() {
                     value={editForm.unionName}
                     onChange={(e) => setEditForm({ ...editForm, unionName: e.target.value })}
                     disabled={isUnionViewer}
-                    className={`w-full px-3 py-2 rounded-xl border text-xs bg-white focus:ring-2 focus:ring-emerald-500 focus:outline-none ${
-                      isUnionViewer ? "bg-slate-100 cursor-not-allowed border-slate-300" : "border-slate-300"
-                    }`}
+                    className={`w-full px-3 py-2 rounded-xl border text-xs bg-white focus:ring-2 focus:ring-emerald-500 focus:outline-none ${isUnionViewer ? "bg-slate-100 cursor-not-allowed border-slate-300" : "border-slate-300"
+                      }`}
                   >
                     <option value="">
                       {language === "bn" ? "-- ইউনিয়ন নির্বাচন করুন --" : "-- Select Union --"}
@@ -2929,6 +3163,137 @@ export default function BeneficiariesPage() {
                     <FolderArchive className="w-4 h-4" />
                   )}
                   {language === "bn" ? "আর্কাইভ নিশ্চিত করুন" : "Confirm Archive"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Review Modal (Approve / Reject Pending Beneficiary Application) */}
+      {reviewModalOpen && reviewTarget && (
+        <div className="no-print fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-200">
+          <div className="bg-white rounded-2xl sm:rounded-3xl shadow-2xl border border-slate-200 w-[95vw] max-w-lg max-h-[90vh] overflow-y-auto p-4 sm:p-6 space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-200">
+              <div className="flex items-center gap-2.5">
+                <div
+                  className={`w-10 h-10 rounded-xl flex items-center justify-center ${reviewAction === "approve"
+                    ? "bg-emerald-100 text-emerald-700"
+                    : "bg-red-100 text-red-700"
+                    }`}
+                >
+                  {reviewAction === "approve" ? (
+                    <CheckCircle2 className="w-5 h-5" />
+                  ) : (
+                    <Ban className="w-5 h-5" />
+                  )}
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-slate-900">
+                    {reviewAction === "approve"
+                      ? (language === "bn" ? "আবেদন অনুমোদন ও সক্রিয়করণ" : "Approve Application")
+                      : (language === "bn" ? "আবেদন প্রত্যাখ্যান ও বাতিল" : "Reject Application")}
+                  </h3>
+                  <p className="text-xs text-slate-500">
+                    {reviewAction === "approve"
+                      ? (language === "bn"
+                        ? "আবেদনটি অনুমোদনের পর সংশ্লিষ্ট দপ্তরের সক্রিয় সুবিধাভোগী তালিকায় যুক্ত হবে"
+                        : "Application will be activated under your department's registry")
+                      : (language === "bn"
+                        ? "আবেদনটি প্রত্যাখ্যানের পর বাতিলকৃত আবেদনের তালিকায় সংরক্ষিত থাকবে"
+                        : "Application will be marked as rejected and retained for auditing")}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setReviewModalOpen(false)}
+                className="text-slate-400 hover:text-slate-600 p-1 rounded-lg"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {reviewError && (
+              <div className="bg-red-50 border border-red-200 text-red-700 text-xs p-3 rounded-xl flex items-center gap-2">
+                <AlertTriangle className="w-4 h-4 shrink-0" />
+                <span>{reviewError}</span>
+              </div>
+            )}
+
+            {/* Target Application Details */}
+            <div className="bg-slate-50 rounded-xl p-3 border border-slate-200 text-xs space-y-1.5">
+              <div className="flex justify-between items-center">
+                <span className="text-slate-500">{language === "bn" ? "আবেদনকারীর নাম:" : "Applicant Name:"}</span>
+                <span className="font-bold text-slate-900">{reviewTarget.beneficiaryName}</span>
+              </div>
+              {reviewTarget.nid && (
+                <div className="flex justify-between items-center">
+                  <span className="text-slate-500">{language === "bn" ? "এনআইডি নম্বর:" : "NID Number:"}</span>
+                  <span className="font-mono text-slate-800">{reviewTarget.nid}</span>
+                </div>
+              )}
+              <div className="flex justify-between items-center">
+                <span className="text-slate-500">{language === "bn" ? "কর্মসূচি / স্কিম:" : "Scheme:"}</span>
+                <span className="font-semibold text-emerald-800">{reviewTarget.schemeName}</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-slate-500">{language === "bn" ? "দপ্তর:" : "Department:"}</span>
+                <span className="text-slate-800">{reviewTarget.departmentName}</span>
+              </div>
+            </div>
+
+            <form onSubmit={handleSubmitReview} className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  {reviewAction === "approve"
+                    ? (language === "bn" ? "দাপ্তরিক অনুমোদন নোট (ঐচ্ছিক)" : "Approval Remarks (Optional)")
+                    : (language === "bn" ? "বাতিল বা প্রত্যাখ্যানের কারণ (বাধ্যতামূলক) *" : "Rejection Reason (Required) *")}
+                </label>
+                <textarea
+                  required={reviewAction === "reject"}
+                  rows={3}
+                  value={reviewNote}
+                  onChange={(e) => setReviewNote(e.target.value)}
+                  placeholder={
+                    reviewAction === "approve"
+                      ? (language === "bn"
+                        ? "যাচাইক্রমে সঠিক পাওয়া গেছে। দপ্তর প্রধান কর্তৃক অনুমোদিত।"
+                        : "Verified and approved as eligible.")
+                      : (language === "bn"
+                        ? "যেমন: নীতিমালার শর্ত পূরণ করেনি / অন্য কর্মসূচি হতে ইতিমধ্যে ভাতা নিচ্ছেন / কাগজপত্র অসম্পূর্ণ..."
+                        : "Enter reason for rejection...")
+                  }
+                  className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs focus:ring-2 focus:ring-emerald-500 focus:outline-none leading-relaxed"
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setReviewModalOpen(false)}
+                  className="px-4 py-2 rounded-xl border border-slate-300 text-slate-700 text-xs font-semibold hover:bg-slate-50 cursor-pointer"
+                >
+                  {t.beneficiariesPage.btnCancel}
+                </button>
+                <button
+                  type="submit"
+                  disabled={reviewSubmitting}
+                  className={`inline-flex items-center gap-1.5 px-5 py-2 rounded-xl text-white text-xs font-bold shadow-xs transition-all disabled:opacity-50 cursor-pointer ${reviewAction === "approve"
+                    ? "bg-emerald-600 hover:bg-emerald-700"
+                    : "bg-red-600 hover:bg-red-700"
+                    }`}
+                >
+                  {reviewSubmitting ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : reviewAction === "approve" ? (
+                    <Check className="w-4 h-4" />
+                  ) : (
+                    <X className="w-4 h-4" />
+                  )}
+                  {reviewAction === "approve"
+                    ? (language === "bn" ? "অনুমোদন ও সক্রিয় করুন" : "Approve & Activate")
+                    : (language === "bn" ? "আবেদন বাতিল নিশ্চিত করুন" : "Confirm Rejection")}
                 </button>
               </div>
             </form>
