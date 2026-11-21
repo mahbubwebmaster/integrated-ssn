@@ -196,6 +196,7 @@ export default function BeneficiariesPage() {
   // NID OCR Scanning State
   const [nidImagePreview, setNidImagePreview] = useState<string | null>(null);
   const [nidScanning, setNidScanning] = useState(false);
+  const [nidScanStatusText, setNidScanStatusText] = useState("");
   const [nidScanSuccess, setNidScanSuccess] = useState(false);
   const [nidScanError, setNidScanError] = useState<string | null>(null);
   const [geminiApiKey, setGeminiApiKey] = useState("");
@@ -215,48 +216,83 @@ export default function BeneficiariesPage() {
     }
   };
 
-  const handleScanNidImage = async (fileOrDemo?: File | "demo") => {
+  // Client-side image compression for fast OCR upload & processing
+  const compressImageForOcr = async (file: File): Promise<string> => {
+    return new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const rawDataUrl = e.target?.result as string;
+        if (!rawDataUrl) {
+          resolve("");
+          return;
+        }
+        const img = new Image();
+        img.onload = () => {
+          const maxDim = 1280;
+          let width = img.width;
+          let height = img.height;
+          if (width > maxDim || height > maxDim) {
+            if (width > height) {
+              height = Math.round((height * maxDim) / width);
+              width = maxDim;
+            } else {
+              width = Math.round((width * maxDim) / height);
+              height = maxDim;
+            }
+          }
+          const canvas = document.createElement("canvas");
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext("2d");
+          if (!ctx) {
+            resolve(rawDataUrl);
+            return;
+          }
+          ctx.drawImage(img, 0, 0, width, height);
+          // 82% quality produces crisp text under 250KB for fast Gemini parsing
+          const compressed = canvas.toDataURL("image/jpeg", 0.82);
+          resolve(compressed);
+        };
+        img.onerror = () => resolve(rawDataUrl);
+        img.src = rawDataUrl;
+      };
+      reader.onerror = () => resolve("");
+      reader.readAsDataURL(file);
+    });
+  };
+
+  const handleScanNidImage = async (file?: File) => {
     try {
+      if (!file) return;
+
       setNidScanning(true);
       setNidScanError(null);
       setNidScanSuccess(false);
 
-      if (fileOrDemo === "demo") {
-        const res = await fetch("/api/ocr/nid", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ isDemo: true }),
-        });
-        const json = await res.json();
-        if (json.success && json.data) {
-          applyExtractedNidData(json.data);
-          setNidScanSuccess(true);
-        } else {
-          setNidScanError(json.error || "স্ক্যান ব্যর্থ হয়েছে");
-        }
+      setNidScanStatusText(language === "bn" ? "ছবি অপটিমাইজ ও সাইজ ছোট করা হচ্ছে..." : "Optimizing image...");
+      const dataUrl = await compressImageForOcr(file);
+      if (!dataUrl) {
+        setNidScanError(language === "bn" ? "ছবিটি লোড করা সম্ভব হয়নি।" : "Failed to load image.");
         return;
       }
-
-      if (!fileOrDemo) return;
-
-      const reader = new FileReader();
-      const base64Promise = new Promise<string>((resolve, reject) => {
-        reader.onload = () => resolve(reader.result as string);
-        reader.onerror = reject;
-      });
-      reader.readAsDataURL(fileOrDemo);
-      const dataUrl = await base64Promise;
       setNidImagePreview(dataUrl);
+
+      setNidScanStatusText(language === "bn" ? "এনআইডি কার্ড স্ক্যান ও তথ্য সংগ্রহ করা হচ্ছে..." : "Extracting NID details with AI...");
+
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 25000); // 25s client-side timeout
 
       const res = await fetch("/api/ocr/nid", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        signal: controller.signal,
         body: JSON.stringify({
           imageBase64: dataUrl,
-          mimeType: fileOrDemo.type || "image/jpeg",
+          mimeType: "image/jpeg",
           apiKey: geminiApiKey.trim() || undefined,
         }),
       });
+      clearTimeout(timeoutId);
 
       const json = await res.json();
       if (json.success && json.data) {
@@ -270,9 +306,18 @@ export default function BeneficiariesPage() {
       }
     } catch (err: any) {
       console.error(err);
-      setNidScanError("ছবি প্রসেসিং বা সংযোগে ত্রুটি হয়েছে।");
+      if (err.name === "AbortError") {
+        setNidScanError(
+          language === "bn"
+            ? "স্ক্যান করার সময়সীমা অতিক্রান্ত হয়েছে (Timeout)। অনুগ্রহ করে পুনরায় চেষ্টা করুন বা ম্যানুয়ালি তথ্য লিখুন।"
+            : "OCR scan timed out. Please try again or enter details manually."
+        );
+      } else {
+        setNidScanError(language === "bn" ? "ছবি প্রসেসিং বা সংযোগে ত্রুটি হয়েছে।" : "Image processing error.");
+      }
     } finally {
       setNidScanning(false);
+      setNidScanStatusText("");
     }
   };
 
@@ -2241,16 +2286,6 @@ export default function BeneficiariesPage() {
                   <div className="flex items-center gap-1.5 shrink-0 self-end sm:self-center">
                     <button
                       type="button"
-                      onClick={() => handleScanNidImage("demo")}
-                      disabled={nidScanning}
-                      className="px-2.5 py-1.5 rounded-lg bg-white border border-slate-300 hover:bg-slate-100 text-slate-700 text-[11px] font-semibold flex items-center gap-1 transition-colors cursor-pointer disabled:opacity-50"
-                      title={language === "bn" ? "ডেমো কার্ড দিয়ে পরীক্ষা করুন" : "Test with sample NID data"}
-                    >
-                      <Sparkles className="w-3.5 h-3.5 text-amber-500" />
-                      <span>{language === "bn" ? "ডেমো টেস্ট" : "Demo Test"}</span>
-                    </button>
-                    <button
-                      type="button"
                       onClick={() => setShowApiKeyInput(!showApiKeyInput)}
                       className="p-1.5 rounded-lg text-slate-500 hover:text-slate-800 hover:bg-white/80 transition-colors cursor-pointer"
                       title={language === "bn" ? "API Key সেটিংস" : "API Key Settings"}
@@ -2361,9 +2396,10 @@ export default function BeneficiariesPage() {
                   <div className="flex items-center gap-2 p-2.5 rounded-xl bg-blue-50 border border-blue-200 text-blue-800 text-xs font-medium animate-pulse">
                     <Loader2 className="w-4 h-4 animate-spin text-blue-600 shrink-0" />
                     <span>
-                      {language === "bn"
-                        ? "এনআইডি কার্ড স্ক্যান ও তথ্য বিশ্লেষণ করা হচ্ছে..."
-                        : "Scanning and extracting NID card details..."}
+                      {nidScanStatusText ||
+                        (language === "bn"
+                          ? "এনআইডি কার্ড স্ক্যান ও তথ্য বিশ্লেষণ করা হচ্ছে..."
+                          : "Scanning and extracting NID card details...")}
                     </span>
                   </div>
                 )}
