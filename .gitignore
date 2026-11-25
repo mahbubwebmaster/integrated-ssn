@@ -46,3 +46,7 @@ yarn-error.log*
 next-env.d.ts
 
 /src/generated/prisma
+
+# staging uploads
+/src/data/staging/*.json
+!/src/data/staging/manifest.json

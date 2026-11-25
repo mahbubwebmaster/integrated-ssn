@@ -91,8 +91,8 @@ export const ROLE_PERMISSIONS = {
   },
   DISTRICT_ADMIN: {
     canViewAllDepartments: true,
-    canUploadExcel: false,
-    canUploadAnyDepartment: false,
+    canUploadExcel: true,
+    canUploadAnyDepartment: true,
     canViewDetailedDeduplication: true,
     canDirectlySuspend: false,
     canApproveSuspension: false,
@@ -102,8 +102,8 @@ export const ROLE_PERMISSIONS = {
   },
   UPAZILA_ADMIN: {
     canViewAllDepartments: true,
-    canUploadExcel: false,
-    canUploadAnyDepartment: false,
+    canUploadExcel: true,
+    canUploadAnyDepartment: true,
     canViewDetailedDeduplication: true,
     canDirectlySuspend: false,
     canApproveSuspension: true,

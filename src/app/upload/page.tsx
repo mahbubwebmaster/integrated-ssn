@@ -25,6 +25,11 @@ import {
   Lock,
   Wheat,
   History,
+  Database,
+  Trash2,
+  Play,
+  RefreshCw,
+  Clock,
 } from "lucide-react";
 import Link from "next/link";
 import { useAuth } from "@/context/AuthContext";
@@ -35,6 +40,11 @@ import {
   BENEFIT_TYPE_OPTIONS,
 } from "@/lib/scheme-calc";
 import { NETROKONA_UPAZILAS } from "@/lib/netrokona";
+import {
+  DEPARTMENT_PRESETS,
+  findMatchingHeader,
+  DepartmentPreset,
+} from "@/lib/department-presets";
 
 interface Department {
   id: string;
@@ -261,6 +271,15 @@ export default function BulkUploadPage() {
   // Column Mapping: systemKey -> excelHeader
   const [columnMapping, setColumnMapping] = useState<Record<string, string>>({});
 
+  // Staging Buffer & Preset State
+  const [activeTab, setActiveTab] = useState<"upload" | "staging">("upload");
+  const [stagedBatches, setStagedBatches] = useState<any[]>([]);
+  const [loadingStaged, setLoadingStaged] = useState(false);
+  const [currentStagedId, setCurrentStagedId] = useState<string | null>(null);
+  const [selectedPresetId, setSelectedPresetId] = useState<string>("auto");
+  const [savingToStaging, setSavingToStaging] = useState(false);
+  const [stagingSuccessMsg, setStagingSuccessMsg] = useState<string | null>(null);
+
   // Submission State
   const [uploading, setUploading] = useState(false);
   const [uploadResult, setUploadResult] = useState<UploadResponse | null>(null);
@@ -275,6 +294,142 @@ export default function BulkUploadPage() {
       aliases: f.aliases,
     }));
   }, [language]);
+
+  const fetchStagedBatches = async () => {
+    try {
+      setLoadingStaged(true);
+      const res = await fetch("/api/staging");
+      const data = await res.json();
+      if (data.success && Array.isArray(data.stagedBatches)) {
+        setStagedBatches(data.stagedBatches);
+      }
+    } catch (e) {
+      console.error("Failed to load staging batches:", e);
+    } finally {
+      setLoadingStaged(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchStagedBatches();
+  }, []);
+
+  const handleApplyPreset = (presetId: string) => {
+    setSelectedPresetId(presetId);
+    const preset = DEPARTMENT_PRESETS.find((p) => p.id === presetId);
+    const newMapping: Record<string, string> = {};
+
+    for (const sysField of systemFields) {
+      const presetCol = preset?.mappings ? preset.mappings[sysField.key] : undefined;
+      const matched = findMatchingHeader(excelHeaders, sysField.aliases, presetCol);
+      if (matched) {
+        newMapping[sysField.key] = matched;
+      }
+    }
+    setColumnMapping(newMapping);
+  };
+
+  const handleSaveToStaging = async () => {
+    if (!selectedDeptId || !selectedSchemeId) {
+      alert(language === "bn" ? "দপ্তর ও কর্মসূচি নির্বাচন করুন।" : "Please select department & scheme.");
+      return;
+    }
+    if (rawRows.length === 0) {
+      alert(language === "bn" ? "কোনো ডাটা পাওয়া যায়নি।" : "No rows to stage.");
+      return;
+    }
+
+    try {
+      setSavingToStaging(true);
+      setStagingSuccessMsg(null);
+      const res = await fetch("/api/staging", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          departmentId: selectedDeptId,
+          departmentName: currentDept?.nameBn || currentDept?.name,
+          schemeId: selectedSchemeId,
+          schemeName: currentScheme?.nameBn || currentScheme?.name,
+          district: selectedDistrict,
+          upazilaName: selectedUpazila,
+          fileName: file?.name || "uploaded_data.xlsx",
+          headers: excelHeaders,
+          rawRows,
+          columnMapping,
+          presetId: selectedPresetId,
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setCurrentStagedId(data.stageId);
+        setStagingSuccessMsg(
+          language === "bn"
+            ? `✓ ফাইলটি সফলভাবে অস্থায়ী স্টেজিং টেবিলে সংরক্ষিত হয়েছে (${formatNumber(rawRows.length, language)} টি সারি)।`
+            : `✓ File saved to staging buffer successfully (${rawRows.length} rows).`
+        );
+        fetchStagedBatches();
+      } else {
+        alert(data.error || "Failed to save staging data");
+      }
+    } catch (e: any) {
+      console.error("Save to staging error:", e);
+      alert("Error saving to staging");
+    } finally {
+      setSavingToStaging(false);
+    }
+  };
+
+  const handleLoadStagedBatch = async (stagedItem: any) => {
+    try {
+      setLoadingStaged(true);
+      const res = await fetch(`/api/staging/${stagedItem.id}`);
+      const data = await res.json();
+      if (data.success && data.rawRows) {
+        setCurrentStagedId(stagedItem.id);
+        setSelectedDeptId(stagedItem.departmentId);
+        setSelectedSchemeId(stagedItem.schemeId);
+        setSelectedDistrict(stagedItem.district || "নেত্রকোণা");
+        setSelectedUpazila(stagedItem.upazilaName || "নেত্রকোণা সদর");
+        setExcelHeaders(stagedItem.headers || []);
+        setRawRows(data.rawRows);
+        setFile({ name: stagedItem.fileName } as any);
+
+        if (stagedItem.columnMapping && Object.keys(stagedItem.columnMapping).length > 0) {
+          setColumnMapping(stagedItem.columnMapping);
+        } else {
+          const autoMap: Record<string, string> = {};
+          for (const sysField of systemFields) {
+            const m = findMatchingHeader(stagedItem.headers || [], sysField.aliases);
+            if (m) autoMap[sysField.key] = m;
+          }
+          setColumnMapping(autoMap);
+        }
+
+        setActiveTab("upload");
+        setStep(2);
+      }
+    } catch (e) {
+      console.error("Failed to load staged batch:", e);
+    } finally {
+      setLoadingStaged(false);
+    }
+  };
+
+  const handleDeleteStagedBatch = async (id: string) => {
+    if (!confirm(language === "bn" ? "আপনি কি নিশ্চিত এই খসড়া ডাটা মুছে ফেলতে চান?" : "Are you sure you want to discard this staged batch?")) return;
+    try {
+      const res = await fetch(`/api/staging/${id}`, { method: "DELETE" });
+      const data = await res.json();
+      if (data.success) {
+        fetchStagedBatches();
+        if (currentStagedId === id) {
+          setCurrentStagedId(null);
+        }
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
 
   // Load Departments & Schemes
   useEffect(() => {
@@ -570,39 +725,51 @@ export default function BulkUploadPage() {
       setUploading(true);
       setErrorMessage(null);
 
-      const recordsToSend = cleanedData.map((r) => ({
-        fullName: r.fullName,
-        guardianName: r.guardianName,
-        gender: r.gender,
-        nid: r.nid,
-        brn: r.brn,
-        mobile: r.mobile,
-        district: r.district || selectedDistrict,
-        upazilaName: r.upazilaName || selectedUpazila,
-        unionName: r.unionName,
-        wardNo: r.wardNo,
-        cardNumber: r.cardNumber,
-        rowNumber: r.rowNumber,
-      }));
+      let res;
+      if (currentStagedId) {
+        res = await fetch(`/api/staging/${currentStagedId}/commit`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            columnMapping,
+          }),
+        });
+      } else {
+        const recordsToSend = cleanedData.map((r) => ({
+          fullName: r.fullName,
+          guardianName: r.guardianName,
+          gender: r.gender,
+          nid: r.nid,
+          brn: r.brn,
+          mobile: r.mobile,
+          district: r.district || selectedDistrict,
+          upazilaName: r.upazilaName || selectedUpazila,
+          unionName: r.unionName,
+          wardNo: r.wardNo,
+          cardNumber: r.cardNumber,
+          rowNumber: r.rowNumber,
+        }));
 
-      const res = await fetch("/api/upload", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          departmentId: selectedDeptId,
-          schemeId: selectedSchemeId,
-          district: selectedDistrict,
-          upazilaName: selectedUpazila,
-          records: recordsToSend,
-          fileName: file?.name || "upload.xlsx",
-          uploadedByUserId: currentUser?.id,
-        }),
-      });
+        res = await fetch("/api/upload", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            departmentId: selectedDeptId,
+            schemeId: selectedSchemeId,
+            district: selectedDistrict,
+            upazilaName: selectedUpazila,
+            records: recordsToSend,
+            fileName: file?.name || "upload.xlsx",
+            uploadedByUserId: currentUser?.id,
+          }),
+        });
+      }
 
       const data: UploadResponse = await res.json();
       if (data.success) {
         setUploadResult(data);
         setStep(4);
+        fetchStagedBatches();
       } else {
         setErrorMessage((data as unknown as { error?: string }).error || (language === "bn" ? "আপলোড সম্পন্ন হয়নি।" : "Failed to process upload."));
       }
@@ -849,30 +1016,69 @@ export default function BulkUploadPage() {
             </div>
           </div>
 
-          {/* Stepper Wizard Progress */}
-          <div className="mt-8 pt-6 border-t border-slate-100">
-            <div className="grid grid-cols-4 gap-2 sm:gap-4 text-center">
-              {[
-                { s: 1, title: t.upload.step1 },
-                { s: 2, title: t.upload.step2 },
-                { s: 3, title: t.upload.step3 },
-                { s: 4, title: t.upload.step4 },
-              ].map((item) => (
-                <div
-                  key={item.s}
-                  className={`py-2 px-3 rounded-xl border text-xs sm:text-sm font-medium transition-all ${
-                    step === item.s
-                      ? "bg-emerald-800 text-white border-emerald-800 shadow-sm"
-                      : step > item.s
-                      ? "bg-emerald-50 text-emerald-800 border-emerald-200"
-                      : "bg-slate-50 text-slate-400 border-slate-200"
-                  }`}
-                >
-                  {item.title}
-                </div>
-              ))}
-            </div>
+          {/* Tab Navigation: Upload Wizard vs Staging Buffer */}
+          <div className="mt-6 flex border-b border-slate-200 gap-2">
+            <button
+              type="button"
+              onClick={() => setActiveTab("upload")}
+              className={`pb-3 px-4 text-xs sm:text-sm font-bold flex items-center gap-2 border-b-2 transition-all cursor-pointer ${
+                activeTab === "upload"
+                  ? "border-emerald-700 text-emerald-800"
+                  : "border-transparent text-slate-500 hover:text-slate-700"
+              }`}
+            >
+              <UploadCloud className="w-4 h-4" />
+              <span>{language === "bn" ? "নতুন ফাইল আপলোড ও উইজার্ড" : "Upload & Ingest Wizard"}</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                setActiveTab("staging");
+                fetchStagedBatches();
+              }}
+              className={`pb-3 px-4 text-xs sm:text-sm font-bold flex items-center gap-2 border-b-2 transition-all cursor-pointer ${
+                activeTab === "staging"
+                  ? "border-emerald-700 text-emerald-800"
+                  : "border-transparent text-slate-500 hover:text-slate-700"
+              }`}
+            >
+              <Database className="w-4 h-4" />
+              <span>{language === "bn" ? "অস্থায়ী ডাটা স্টেজিং বাফার" : "Staging Buffer"}</span>
+              {stagedBatches.length > 0 && (
+                <span className="px-2 py-0.5 rounded-full text-[11px] font-extrabold bg-emerald-100 text-emerald-800 border border-emerald-300">
+                  {formatNumber(stagedBatches.length, language)}
+                </span>
+              )}
+            </button>
           </div>
+
+          {/* Stepper Wizard Progress */}
+          {activeTab === "upload" && (
+            <div className="mt-6 pt-2">
+              <div className="grid grid-cols-4 gap-2 sm:gap-4 text-center">
+                {[
+                  { s: 1, title: t.upload.step1 },
+                  { s: 2, title: t.upload.step2 },
+                  { s: 3, title: t.upload.step3 },
+                  { s: 4, title: t.upload.step4 },
+                ].map((item) => (
+                  <div
+                    key={item.s}
+                    className={`py-2 px-3 rounded-xl border text-xs sm:text-sm font-medium transition-all ${
+                      step === item.s
+                        ? "bg-emerald-800 text-white border-emerald-800 shadow-sm"
+                        : step > item.s
+                        ? "bg-emerald-50 text-emerald-800 border-emerald-200"
+                        : "bg-slate-50 text-slate-400 border-slate-200"
+                    }`}
+                  >
+                    {item.title}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Global Error Banner */}
@@ -887,8 +1093,21 @@ export default function BulkUploadPage() {
         )}
 
         {/* STEP 1: Program Selection & File Upload */}
-        {step === 1 && (
+        {activeTab === "upload" && step === 1 && (
           <div className="space-y-6">
+            {/* Multi-Department MIS Info Banner */}
+            <div className="p-4 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-2xl border border-blue-200 flex items-start gap-3 shadow-xs">
+              <Database className="w-5 h-5 text-blue-700 shrink-0 mt-0.5" />
+              <div className="text-xs text-blue-900 leading-relaxed">
+                <span className="font-bold">
+                  {language === "bn" ? "বহু-দাপ্তরিক MIS এক্সপোর্ট ডাটা সরাসরি আপলোড:" : "Multi-Department MIS Support:"}
+                </span>{" "}
+                {language === "bn"
+                  ? "সমাজসেবা (বয়স্ক/বিধবা/প্রতিবন্ধী), মহিলা বিষয়ক (VWB), খাদ্য অধিদপ্তর (FFP/OMS), দুর্যোগ ব্যবস্থাপনা (VGF/GR) কিংবা টিসিবি যেকোনো দপ্তরের এক্সপোর্ট ফাইল কলামের ক্রম না বদলেই আপলোড করুন। পরবর্তী ধাপে প্রিসেট ও অস্থায়ী স্টেজিং সুবিধা রয়েছে।"
+                  : "Upload roster exports directly from Social Services, Women Affairs, Food, Relief, or TCB without reordering columns. Department presets and staging buffer are available in next steps."}
+              </div>
+            </div>
+
             {/* Scheme & Department Selection Box */}
             <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200">
               <h2 className="text-base font-bold text-slate-900 flex items-center gap-2 mb-4">
@@ -1065,27 +1284,108 @@ export default function BulkUploadPage() {
         )}
 
         {/* STEP 2: Column Mapping UI */}
-        {step === 2 && (
+        {activeTab === "upload" && step === 2 && (
           <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 space-y-6">
-            <div className="flex items-center justify-between pb-4 border-b border-slate-100">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-100">
               <div>
                 <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2">
                   <Layers className="w-5 h-5 text-emerald-700" />
                   {t.upload.mappingTitle}
                 </h2>
-                <p className="text-xs text-slate-500 mt-0.5">
-                  {t.upload.selectedFile} <strong className="text-slate-800">{file?.name}</strong> • {t.upload.totalRowsFound} {formatNumber(rawRows.length, language)}
+                <p className="text-xs text-slate-500 mt-0.5 flex flex-wrap items-center gap-2">
+                  <span>
+                    {t.upload.selectedFile} <strong className="text-slate-800">{file?.name}</strong> • {t.upload.totalRowsFound}{" "}
+                    {formatNumber(rawRows.length, language)}
+                  </span>
+                  {currentStagedId && (
+                    <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200">
+                      {language === "bn" ? `স্টেজিং আইডি: ${currentStagedId}` : `Stage ID: ${currentStagedId}`}
+                    </span>
+                  )}
                 </p>
               </div>
 
-              <button
-                type="button"
-                onClick={() => setStep(1)}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-300 text-xs text-slate-600 hover:bg-slate-100 font-medium"
-              >
-                <ArrowLeft className="w-3.5 h-3.5" />
-                {t.upload.changeFile}
-              </button>
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={handleSaveToStaging}
+                  disabled={savingToStaging}
+                  className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-900 border border-blue-200 text-xs font-bold transition-all shadow-xs disabled:opacity-50 cursor-pointer"
+                  title={language === "bn" ? "পরে কাজ করার জন্য অথবা ড্রাফট রাখার জন্য এই কাঁচা ডাটা অস্থায়ী টেবিলে সংরক্ষণ করুন" : "Save raw data into temporary staging table"}
+                >
+                  {savingToStaging ? (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin text-blue-700" />
+                  ) : (
+                    <Database className="w-3.5 h-3.5 text-blue-700" />
+                  )}
+                  <span>{language === "bn" ? "অস্থায়ী স্টেজিংয়ে সংরক্ষণ" : "Save to Staging"}</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setStep(1)}
+                  className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-slate-300 text-xs text-slate-600 hover:bg-slate-100 font-medium cursor-pointer"
+                >
+                  <ArrowLeft className="w-3.5 h-3.5" />
+                  {t.upload.changeFile}
+                </button>
+              </div>
+            </div>
+
+            {/* Staging Success Notification */}
+            {stagingSuccessMsg && (
+              <div className="p-3 bg-blue-50 rounded-xl border border-blue-200 text-xs text-blue-900 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Database className="w-4 h-4 text-blue-600 shrink-0" />
+                  <span>{stagingSuccessMsg}</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setStagingSuccessMsg(null)}
+                  className="text-blue-500 hover:text-blue-700 font-bold ml-2 text-xs cursor-pointer"
+                >
+                  ✕
+                </button>
+              </div>
+            )}
+
+            {/* Department MIS Preset Selector Box */}
+            <div className="p-4 bg-gradient-to-r from-emerald-50/70 to-teal-50/70 rounded-xl border border-emerald-200/80">
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+                <div className="space-y-0.5">
+                  <div className="flex items-center gap-1.5 text-xs font-bold text-emerald-900">
+                    <Sparkles className="w-4 h-4 text-emerald-700" />
+                    <span>{language === "bn" ? "দপ্তরভিত্তিক MIS কলাম প্রিসেট (Auto-Mapper)" : "Department MIS Preset (Auto-Mapper)"}</span>
+                  </div>
+                  <p className="text-[11px] text-slate-600">
+                    {language === "bn"
+                      ? "যে দপ্তরের এমআইএস থেকে ফাইলটি এসেছে তা নির্বাচন করুন, সিস্টেম স্বয়ংক্রিয়ভাবে সংশ্লিষ্ট কলামগুলো ম্যাচ করিয়ে নিবে।"
+                      : "Select the originating department MIS format to auto-align its unique column structure."}
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <select
+                    value={selectedPresetId}
+                    onChange={(e) => handleApplyPreset(e.target.value)}
+                    className="min-h-[38px] px-3 py-1.5 rounded-lg border border-emerald-300 bg-white text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-600"
+                  >
+                    {DEPARTMENT_PRESETS.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {language === "bn" ? p.nameBn : p.nameEn}
+                      </option>
+                    ))}
+                  </select>
+                  <button
+                    type="button"
+                    onClick={() => handleApplyPreset(selectedPresetId)}
+                    className="min-h-[38px] px-3 py-1.5 rounded-lg bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-bold flex items-center gap-1.5 shadow-xs cursor-pointer"
+                  >
+                    <RefreshCw className="w-3.5 h-3.5" />
+                    <span>{language === "bn" ? "প্রয়োগ করুন" : "Apply"}</span>
+                  </button>
+                </div>
+              </div>
             </div>
 
             {/* Missing Required Warning */}
@@ -1181,7 +1481,7 @@ export default function BulkUploadPage() {
         )}
 
         {/* STEP 3: Automated Cleansing & Live Preview */}
-        {step === 3 && (
+        {activeTab === "upload" && step === 3 && (
           <div className="bg-white rounded-2xl p-4 sm:p-6 shadow-sm border border-slate-200 space-y-6">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-100">
               <div>
@@ -1348,7 +1648,7 @@ export default function BulkUploadPage() {
         )}
 
         {/* STEP 4: Real-time Deduplication Results Summary */}
-        {step === 4 && uploadResult && (
+        {activeTab === "upload" && step === 4 && uploadResult && (
           <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 space-y-6">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-slate-100">
               <div className="flex items-center gap-3">
@@ -1489,6 +1789,157 @@ export default function BulkUploadPage() {
                     ? `এই ব্যাচের সকল ${formatNumber(uploadResult.totalRecords, language)} টি রেকর্ড সফলভাবে যাচাই সম্পন্ন হয়েছে। কোনো ডুপ্লিকেট পাওয়া যায়নি।`
                     : `All ${uploadResult.totalRecords} records in this batch passed validation with no duplicate NIDs or cross-program conflicts. All enrollments set to Active.`}
                 </p>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* STAGING BUFFER TAB VIEW */}
+        {activeTab === "staging" && (
+          <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 space-y-6">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-100">
+              <div>
+                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-50 border border-blue-200 text-xs font-semibold text-blue-800 mb-1.5">
+                  <Database className="w-3.5 h-3.5 text-blue-600" />
+                  <span>{language === "bn" ? "অস্থায়ী ডাটা স্টেজিং টেবিল বাফার" : "Temporary Staging Buffer"}</span>
+                </div>
+                <h2 className="text-xl font-bold text-slate-900">
+                  {language === "bn" ? "সংরক্ষিত স্টেজিং ব্যাচ ও ড্রাফট তালিকা" : "Staged Batches & Raw Ingestion Buffer"}
+                </h2>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  {language === "bn"
+                    ? "বিভিন্ন দপ্তরের আপলোডকৃত কাঁচা ডাটা এখানে নিরাপদে জমা থাকে। আপনি যেকোনো সময় ডাটা প্রিভিউ, কলাম ম্যাপিং পরিবর্তন বা মূল সিস্টেমে ডুপ্লিকেট যাচাইসহ ইমপোর্ট করতে পারবেন।"
+                    : "Raw datasets from various department MIS exports are buffered here safely. Load any batch to map columns and ingest with deduplication checks."}
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={fetchStagedBatches}
+                  disabled={loadingStaged}
+                  className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-slate-300 text-xs font-semibold text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 ${loadingStaged ? "animate-spin" : ""}`} />
+                  <span>{language === "bn" ? "রিফ্রেশ" : "Refresh"}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setActiveTab("upload");
+                    setStep(1);
+                  }}
+                  className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-emerald-800 hover:bg-emerald-900 text-white text-xs font-bold transition-all shadow-xs cursor-pointer"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>{language === "bn" ? "নতুন ফাইল আপলোড করুন" : "Upload New File"}</span>
+                </button>
+              </div>
+            </div>
+
+            {loadingStaged ? (
+              <div className="py-12 flex flex-col items-center justify-center text-slate-500 space-y-2">
+                <Loader2 className="w-8 h-8 animate-spin text-emerald-600" />
+                <span className="text-xs">{language === "bn" ? "স্টেজিং ডাটা লোড হচ্ছে..." : "Loading staged batches..."}</span>
+              </div>
+            ) : stagedBatches.length === 0 ? (
+              <div className="py-12 text-center border-2 border-dashed border-slate-200 rounded-2xl bg-slate-50/50 p-8">
+                <Database className="w-12 h-12 text-slate-300 mx-auto mb-3" />
+                <h3 className="text-sm font-bold text-slate-700 mb-1">
+                  {language === "bn" ? "বর্তমানে কোনো অস্থায়ী স্টেজিং ডাটা নেই" : "No Staged Batches Found"}
+                </h3>
+                <p className="text-xs text-slate-500 max-w-md mx-auto mb-4">
+                  {language === "bn"
+                    ? "যেকোনো দপ্তরের (সমাজসেবা, মহিলা বিষয়ক, খাদ্য, ত্রাণ ইত্যাদি) এক্সেল বা সিএসভি ফাইল আপলোড করে স্টেপ-২ এ 'অস্থায়ী স্টেজিংয়ে সংরক্ষণ' বাটনে ক্লিক করলে তা এখানে জমা থাকবে।"
+                    : "Upload any roster file from Step 1 and click 'Save to Staging' in Step 2 to buffer it here before committing."}
+                </p>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setActiveTab("upload");
+                    setStep(1);
+                  }}
+                  className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-emerald-800 text-white text-xs font-bold hover:bg-emerald-900 shadow-sm cursor-pointer"
+                >
+                  <UploadCloud className="w-4 h-4" />
+                  <span>{language === "bn" ? "এখনই ফাইল আপলোড করুন" : "Upload A File Now"}</span>
+                </button>
+              </div>
+            ) : (
+              <div className="overflow-x-auto rounded-xl border border-slate-200">
+                <table className="w-full text-left text-xs">
+                  <thead className="bg-slate-50 text-slate-700 uppercase font-bold border-b border-slate-200">
+                    <tr>
+                      <th className="py-3 px-4">{language === "bn" ? "ফাইল ও স্টেজিং আইডি" : "File & Stage ID"}</th>
+                      <th className="py-3 px-4">{language === "bn" ? "দপ্তর ও কর্মসূচি" : "Dept & Scheme"}</th>
+                      <th className="py-3 px-4">{language === "bn" ? "এলাকা" : "Location"}</th>
+                      <th className="py-3 px-4 text-center">{language === "bn" ? "মোট সারি" : "Total Rows"}</th>
+                      <th className="py-3 px-4">{language === "bn" ? "আপলোডের সময়" : "Uploaded At"}</th>
+                      <th className="py-3 px-4 text-center">{language === "bn" ? "স্ট্যাটাস" : "Status"}</th>
+                      <th className="py-3 px-4 text-right">{language === "bn" ? "অ্যাকশন" : "Actions"}</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 font-medium text-slate-800">
+                    {stagedBatches.map((batch) => (
+                      <tr key={batch.id} className="hover:bg-slate-50/70 transition-colors">
+                        <td className="py-3 px-4">
+                          <div className="font-bold text-slate-900 flex items-center gap-1.5">
+                            <FileSpreadsheet className="w-4 h-4 text-emerald-700 shrink-0" />
+                            <span>{batch.fileName}</span>
+                          </div>
+                          <div className="text-[10px] text-slate-400 font-mono mt-0.5">{batch.id}</div>
+                        </td>
+                        <td className="py-3 px-4">
+                          <div className="text-slate-900 font-semibold">{batch.departmentName || "দপ্তর"}</div>
+                          <div className="text-[11px] text-emerald-800">{batch.schemeName || "কর্মসূচি"}</div>
+                        </td>
+                        <td className="py-3 px-4 text-slate-600">
+                          {batch.upazilaName || "সদর"}, {batch.district || "নেত্রকোণা"}
+                        </td>
+                        <td className="py-3 px-4 text-center font-bold text-slate-900">
+                          {formatNumber(batch.rowCount || 0, language)}
+                        </td>
+                        <td className="py-3 px-4 text-slate-500 text-[11px]">
+                          {new Date(batch.stagedAt).toLocaleString("bn-BD")}
+                        </td>
+                        <td className="py-3 px-4 text-center">
+                          {batch.status === "COMMITTED" ? (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                              <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                              {language === "bn" ? "ইমপোর্ট সম্পন্ন" : "COMMITTED"}
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-200">
+                              <Clock className="w-3 h-3 text-amber-600" />
+                              {language === "bn" ? "অস্থায়ী স্টেজিং" : "STAGED"}
+                            </span>
+                          )}
+                        </td>
+                        <td className="py-3 px-4 text-right">
+                          <div className="flex items-center justify-end gap-2">
+                            <button
+                              type="button"
+                              onClick={() => handleLoadStagedBatch(batch)}
+                              className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-bold transition-all shadow-xs cursor-pointer"
+                              title={language === "bn" ? "উইজার্ডে লোড করে কলাম ম্যাপিং ও ইমপোর্ট করুন" : "Load into wizard to map & ingest"}
+                            >
+                              <Play className="w-3 h-3" />
+                              <span>{language === "bn" ? "ম্যাপিং ও ইমপোর্ট" : "Load & Ingest"}</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteStagedBatch(batch.id)}
+                              className="p-1.5 rounded-lg border border-red-200 text-red-600 hover:bg-red-50 hover:border-red-300 transition-colors cursor-pointer"
+                              title={language === "bn" ? "মুছে ফেলুন" : "Delete"}
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
             )}
           </div>
