@@ -35,28 +35,35 @@ export async function GET(request: Request) {
       return NextResponse.json({ success: false, error: "User not found." }, { status: 404 });
     }
 
-    return NextResponse.json({
-      success: true,
-      user: {
-        id: user.id,
-        name: user.name,
-        designation: user.designation || null,
-        email: user.email,
-        role: user.role,
-        phone: user.phone || null,
-        phoneVerified: Boolean(user.phoneVerified),
-        image: user.image || null,
-        isEmailVerified: Boolean(user.isEmailVerified),
-        departmentId: user.departmentId,
-        departmentName: user.department?.name || null,
-        departmentNameBn: user.department?.nameBn || null,
-        departmentNameEn: user.department?.nameEn || null,
-        district: user.district || "নেত্রকোণা",
-        upazilaName: user.upazilaName || null,
-        unionName: user.unionName || null,
-        wardNo: user.wardNo || null,
+    return NextResponse.json(
+      {
+        success: true,
+        user: {
+          id: user.id,
+          name: user.name,
+          designation: user.designation || null,
+          email: user.email,
+          role: user.role,
+          phone: user.phone || null,
+          phoneVerified: Boolean(user.phoneVerified),
+          image: user.image || null,
+          isEmailVerified: Boolean(user.isEmailVerified),
+          departmentId: user.departmentId,
+          departmentName: user.department?.name || null,
+          departmentNameBn: user.department?.nameBn || null,
+          departmentNameEn: user.department?.nameEn || null,
+          district: user.district || "নেত্রকোণা",
+          upazilaName: user.upazilaName || null,
+          unionName: user.unionName || null,
+          wardNo: user.wardNo || null,
+        },
       },
-    });
+      {
+        headers: {
+          "Cache-Control": "private, max-age=300, stale-while-revalidate=600",
+        },
+      }
+    );
   } catch (error: unknown) {
     console.error("Profile GET error:", error);
     const message = error instanceof Error ? error.message : "Internal Server Error";

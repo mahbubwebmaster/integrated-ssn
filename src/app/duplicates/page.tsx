@@ -2,7 +2,6 @@
 
 import React, { useState, useEffect, useMemo, useCallback } from "react";
 import Link from "next/link";
-import * as XLSX from "xlsx";
 import {
   ShieldAlert,
   AlertTriangle,
@@ -98,6 +97,12 @@ interface RedundancyData {
     unions: string[];
     wards: string[];
   };
+  pagination?: {
+    total: number;
+    page: number;
+    limit: number;
+    totalPages: number;
+  };
   duplicates: DuplicateItem[];
   breakdownByDepartment: Array<{
     departmentName: string;
@@ -146,6 +151,15 @@ export default function DuplicatesPage() {
   const [selectedDeptId, setSelectedDeptId] = useState("");
   const [selectedGender, setSelectedGender] = useState("");
   const [selectedRisk, setSelectedRisk] = useState<string>("ALL");
+
+  // Pagination States
+  const [page, setPage] = useState(1);
+  const [limit, setLimit] = useState(10);
+
+  // Reset to page 1 when filters change
+  useEffect(() => {
+    setPage(1);
+  }, [search, selectedUpazila, selectedUnion, selectedWard, selectedDeptId, selectedGender, selectedRisk, limit]);
 
   useEffect(() => {
     if (currentUser.upazilaName) {
@@ -217,6 +231,9 @@ export default function DuplicatesPage() {
       if (selectedWard) params.set("ward", selectedWard);
       if (selectedDeptId) params.set("departmentId", selectedDeptId);
       if (selectedGender) params.set("gender", selectedGender);
+      if (selectedRisk && selectedRisk !== "ALL") params.set("risk", selectedRisk);
+      params.set("page", String(page));
+      params.set("limit", String(limit));
 
       const res = await fetch(`/api/redundancy?${params.toString()}`);
       const json: RedundancyData = await res.json();
@@ -228,7 +245,7 @@ export default function DuplicatesPage() {
     } finally {
       setLoading(false);
     }
-  }, [search, selectedUpazila, selectedUnion, selectedWard, selectedDeptId, selectedGender]);
+  }, [search, selectedUpazila, selectedUnion, selectedWard, selectedDeptId, selectedGender, selectedRisk, page, limit]);
 
   useEffect(() => {
     fetchRedundancyData();
@@ -384,22 +401,45 @@ export default function DuplicatesPage() {
     );
 
     return {
-      totalDuplicates: totalDups,
-      totalExcessMonthly,
-      totalExcessYearly,
-      totalRedundantCount,
+      totalDuplicates: data?.summary?.totalDuplicateBeneficiaries ?? totalDups,
+      totalExcessMonthly: data?.summary?.totalMonthlyLeakAmount ?? totalExcessMonthly,
+      totalExcessYearly: data?.summary?.totalYearlyLeakAmount ?? totalExcessYearly,
+      totalRedundantCount: data?.summary?.totalRedundantEnrollments ?? totalRedundantCount,
     };
-  }, [filteredDuplicates]);
+  }, [filteredDuplicates, data?.summary]);
 
-  // Export Audit Report to Excel
-  const handleExportExcel = () => {
-    if (filteredDuplicates.length === 0) {
+  // Export Audit Report to Excel (fetches full filtered dataset & lazy-loads xlsx)
+  const handleExportExcel = async () => {
+    if ((data?.summary?.totalDuplicateBeneficiaries ?? filteredDuplicates.length) === 0) {
       alert(language === "bn" ? "এক্সপোর্ট করার জন্য কোনো তথ্য নেই।" : "No duplicate records to export.");
       return;
     }
 
+    let itemsToExport = filteredDuplicates;
+    try {
+      const params = new URLSearchParams();
+      if (search) params.set("search", search);
+      if (selectedUpazila && selectedUpazila !== "all" && selectedUpazila !== "সমগ্র জেলা") {
+        params.set("upazila", selectedUpazila);
+      }
+      if (selectedUnion) params.set("union", selectedUnion);
+      if (selectedWard) params.set("ward", selectedWard);
+      if (selectedDeptId) params.set("departmentId", selectedDeptId);
+      if (selectedGender) params.set("gender", selectedGender);
+      if (selectedRisk && selectedRisk !== "ALL") params.set("risk", selectedRisk);
+      params.set("all", "true");
+
+      const res = await fetch(`/api/redundancy?${params.toString()}`);
+      const json: RedundancyData = await res.json();
+      if (json.success && Array.isArray(json.duplicates)) {
+        itemsToExport = json.duplicates;
+      }
+    } catch {
+      // Fallback to currently loaded items
+    }
+
     const isBn = language === "bn";
-    const exportRows = filteredDuplicates.map((dup, idx) =>
+    const exportRows = itemsToExport.map((dup, idx) =>
       isBn
         ? {
             "ক্রমিক নং": idx + 1,
@@ -445,6 +485,7 @@ export default function DuplicatesPage() {
           }
     );
 
+    const XLSX = await import("xlsx");
     const worksheet = XLSX.utils.json_to_sheet(exportRows);
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, isBn ? "ডুপ্লিকেট_নিরীক্ষা" : "SSNP_Duplicates_Audit");
@@ -1178,6 +1219,51 @@ export default function DuplicatesPage() {
                 </div>
               );
             })}
+
+            {/* Pagination Controls */}
+            {data?.pagination && data.pagination.total > 0 && (
+              <div className="no-print bg-white rounded-2xl p-4 border border-slate-200 shadow-xs flex flex-col sm:flex-row items-center justify-between gap-3">
+                <div className="flex items-center gap-3 text-xs text-slate-600">
+                  <span>
+                    {language === "bn"
+                      ? `দেখানো হচ্ছে ${formatNumber((data.pagination.page - 1) * data.pagination.limit + 1, language)}–${formatNumber(Math.min(data.pagination.page * data.pagination.limit, data.pagination.total), language)} (মোট ${formatNumber(data.pagination.total, language)}টি ডুপ্লিকেট)`
+                      : `Showing ${(data.pagination.page - 1) * data.pagination.limit + 1}–${Math.min(data.pagination.page * data.pagination.limit, data.pagination.total)} of ${data.pagination.total} duplicates`}
+                  </span>
+                  <select
+                    value={limit}
+                    onChange={(e) => setLimit(Number(e.target.value))}
+                    className="px-2 py-1 rounded-lg border border-slate-300 bg-slate-50 text-xs font-semibold text-slate-700"
+                    aria-label={language === "bn" ? "প্রতি পেজে সারি" : "Rows per page"}
+                  >
+                    <option value={10}>{language === "bn" ? "১০ / পেজ" : "10 / page"}</option>
+                    <option value={25}>{language === "bn" ? "২৫ / পেজ" : "25 / page"}</option>
+                    <option value={50}>{language === "bn" ? "৫০ / পেজ" : "50 / page"}</option>
+                  </select>
+                </div>
+
+                <div className="flex items-center gap-1.5">
+                  <button
+                    onClick={() => setPage((p) => Math.max(1, p - 1))}
+                    disabled={data.pagination.page <= 1}
+                    className="px-3 py-1.5 rounded-lg border border-slate-300 text-xs font-bold text-slate-700 hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+                  >
+                    {language === "bn" ? "পূর্ববর্তী" : "Previous"}
+                  </button>
+                  <span className="px-3 py-1.5 rounded-lg bg-slate-900 text-white text-xs font-bold">
+                    {language === "bn"
+                      ? `পেজ ${formatNumber(data.pagination.page, language)} / ${formatNumber(data.pagination.totalPages, language)}`
+                      : `Page ${data.pagination.page} / ${data.pagination.totalPages}`}
+                  </span>
+                  <button
+                    onClick={() => setPage((p) => Math.min(data.pagination!.totalPages, p + 1))}
+                    disabled={data.pagination.page >= data.pagination.totalPages}
+                    className="px-3 py-1.5 rounded-lg border border-slate-300 text-xs font-bold text-slate-700 hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+                  >
+                    {language === "bn" ? "পরবর্তী" : "Next"}
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         )}
 

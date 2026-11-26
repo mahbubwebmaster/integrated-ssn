@@ -46,55 +46,93 @@ export async function GET(request: Request) {
       departmentId: departmentIdParam,
     });
 
-    // 1. Total counts (strictly filtered by administrative scope)
-    const totalBeneficiaries = await prisma.beneficiary.count({ where: beneficiaryScope });
-    const totalEnrollments = await prisma.enrollment.count({ where: enrollmentScope });
-    const activeEnrollments = await prisma.enrollment.count({
-      where: {
-        ...enrollmentScope,
-        status: { in: ["ACTIVE", "Active"] },
-      },
-    });
-    const flaggedEnrollments = await prisma.enrollment.count({
-      where: {
-        ...enrollmentScope,
-        status: { in: ["FLAGGED", "Flagged"] },
-      },
-    });
-    const suspendedEnrollments = await prisma.enrollment.count({
-      where: {
-        ...enrollmentScope,
-        status: { in: ["SUSPENDED", "Suspended"] },
-      },
-    });
-    const archivedEnrollments = await prisma.enrollment.count({
-      where: {
-        ...enrollmentScope,
-        OR: [{ isArchived: true }, { status: { in: ["ARCHIVED", "Archived"] } }],
-      },
-    });
-
     const isDeptOfficer = user?.role === "DEPT_OFFICER" || user?.role === "DEPARTMENT_OFFICER";
     const deptWhere = isDeptOfficer && user?.departmentId ? { id: user.departmentId } : {};
 
-    const totalDepartments = await prisma.department.count({ where: deptWhere });
-    const totalSchemes = await prisma.scheme.count({
-      where: isDeptOfficer && user?.departmentId ? { departmentId: user.departmentId } : {},
-    });
-
-    // 2. Department-wise breakdown within user's geographic & department scope
-    const departments = await prisma.department.findMany({
-      where: deptWhere,
-      include: {
-        schemes: {
-          include: {
-            enrollments: {
-              where: enrollmentScope.beneficiary ? { beneficiary: enrollmentScope.beneficiary } : {},
+    // Execute all independent dashboard DB queries in parallel (reduces 11 sequential RTTs to 1)
+    const [
+      totalBeneficiaries,
+      totalEnrollments,
+      activeEnrollments,
+      flaggedEnrollments,
+      suspendedEnrollments,
+      archivedEnrollments,
+      totalDepartments,
+      totalSchemes,
+      departments,
+      scopedBeneficiaries,
+      recentEnrollments,
+    ] = await Promise.all([
+      prisma.beneficiary.count({ where: beneficiaryScope }),
+      prisma.enrollment.count({ where: enrollmentScope }),
+      prisma.enrollment.count({
+        where: {
+          ...enrollmentScope,
+          status: { in: ["ACTIVE", "Active"] },
+        },
+      }),
+      prisma.enrollment.count({
+        where: {
+          ...enrollmentScope,
+          status: { in: ["FLAGGED", "Flagged"] },
+        },
+      }),
+      prisma.enrollment.count({
+        where: {
+          ...enrollmentScope,
+          status: { in: ["SUSPENDED", "Suspended"] },
+        },
+      }),
+      prisma.enrollment.count({
+        where: {
+          ...enrollmentScope,
+          OR: [{ isArchived: true }, { status: { in: ["ARCHIVED", "Archived"] } }],
+        },
+      }),
+      prisma.department.count({ where: deptWhere }),
+      prisma.scheme.count({
+        where: isDeptOfficer && user?.departmentId ? { departmentId: user.departmentId } : {},
+      }),
+      prisma.department.findMany({
+        where: deptWhere,
+        include: {
+          schemes: {
+            include: {
+              enrollments: {
+                where: enrollmentScope.beneficiary ? { beneficiary: enrollmentScope.beneficiary } : {},
+                select: { status: true },
+              },
             },
           },
         },
-      },
-    });
+      }),
+      prisma.beneficiary.findMany({
+        where: beneficiaryScope,
+        select: {
+          district: true,
+          districtName: true,
+          upazilaName: true,
+          unionName: true,
+          enrollments: {
+            where: enrollmentScope.scheme ? { scheme: enrollmentScope.scheme } : {},
+            select: {
+              status: true,
+              isArchived: true,
+            },
+          },
+        },
+      }),
+      prisma.enrollment.findMany({
+        where: enrollmentScope,
+        take: 100,
+        orderBy: { createdAt: "desc" },
+        select: {
+          uploadedBatchId: true,
+          status: true,
+          createdAt: true,
+        },
+      }),
+    ]);
 
     const departmentStats = departments.map((dept) => {
       let deptEnrollments = 0;
@@ -115,24 +153,6 @@ export async function GET(request: Request) {
         enrollmentCount: deptEnrollments,
         monthlyBudget: deptBudgetMonthly,
       };
-    });
-
-    // 3. Upazila & Union breakdown within administrative scope
-    const scopedBeneficiaries = await prisma.beneficiary.findMany({
-      where: beneficiaryScope,
-      select: {
-        district: true,
-        districtName: true,
-        upazilaName: true,
-        unionName: true,
-        enrollments: {
-          where: enrollmentScope.scheme ? { scheme: enrollmentScope.scheme } : {},
-          select: {
-            status: true,
-            isArchived: true,
-          },
-        },
-      },
     });
 
     const upazilaMap = new Map<string, { upazilaName: string; total: number; active: number; flagged: number; suspended: number; archived: number }>();
@@ -183,16 +203,6 @@ export async function GET(request: Request) {
     const unionStats = Array.from(unionMap.values());
 
     // 4. Recent Upload Batches within scope
-    const recentEnrollments = await prisma.enrollment.findMany({
-      where: enrollmentScope,
-      take: 100,
-      orderBy: { createdAt: "desc" },
-      select: {
-        uploadedBatchId: true,
-        status: true,
-        createdAt: true,
-      },
-    });
 
     const batchMap = new Map<string, { batchId: string; total: number; active: number; flagged: number; date: Date }>();
     for (const e of recentEnrollments) {

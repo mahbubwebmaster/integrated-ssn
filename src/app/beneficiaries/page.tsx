@@ -1,7 +1,6 @@
 "use client";
 
 import React, { useState, useEffect, useMemo } from "react";
-import * as XLSX from "xlsx";
 import {
   Users,
   Search,
@@ -526,22 +525,19 @@ export default function BeneficiariesPage() {
     return age >= 0 ? age : null;
   };
 
-  // Load departments and schemes
+  // Load departments (which already include schemes — avoids redundant /api/schemes request)
   useEffect(() => {
     fetch("/api/departments")
       .then((res) => (res.ok ? res.json() : null))
       .then((data) => {
         if (data?.success && Array.isArray(data.departments)) {
           setDepartments(data.departments);
-        }
-      })
-      .catch(() => { });
-
-    fetch("/api/schemes")
-      .then((res) => (res.ok ? res.json() : null))
-      .then((data) => {
-        if (data?.success && Array.isArray(data.schemes)) {
-          setSchemes(data.schemes);
+          const flattenedSchemes = data.departments.flatMap((d: any) =>
+            Array.isArray(d.schemes)
+              ? d.schemes.map((s: any) => ({ ...s, department: { id: d.id, name: d.name, nameBn: d.nameBn, nameEn: d.nameEn } }))
+              : []
+          );
+          setSchemes(flattenedSchemes);
         }
       })
       .catch(() => { });
@@ -755,6 +751,7 @@ export default function BeneficiariesPage() {
           };
       });
 
+      const XLSX = await import("xlsx");
       const worksheet = XLSX.utils.json_to_sheet(exportRows);
       const workbook = XLSX.utils.book_new();
       const sheetName = isBn ? "উপকারভোগী_রেজিস্ট্রি" : "Beneficiary_Registry";

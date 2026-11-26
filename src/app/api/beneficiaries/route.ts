@@ -3,7 +3,10 @@ import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { getSessionUser, getBeneficiaryScope } from "@/lib/data-scope";
 
+let hasEnsuredBeneficiaryIntegrity = false;
+
 async function ensureBeneficiaryDataIntegrity() {
+  if (hasEnsuredBeneficiaryIntegrity) return;
   try {
     const unmigrated = await prisma.beneficiary.findMany({
       where: {
@@ -15,7 +18,10 @@ async function ensureBeneficiaryDataIntegrity() {
       take: 50,
     });
 
-    if (!unmigrated || unmigrated.length === 0) return;
+    if (!unmigrated || unmigrated.length === 0) {
+      hasEnsuredBeneficiaryIntegrity = true;
+      return;
+    }
 
     for (const b of unmigrated) {
       let nameBn = b.nameBn;

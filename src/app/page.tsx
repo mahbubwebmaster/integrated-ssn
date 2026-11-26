@@ -2,7 +2,6 @@
 
 import React, { useState, useEffect, useMemo, useCallback } from "react";
 import Link from "next/link";
-import * as XLSX from "xlsx";
 import {
   UploadCloud,
   ShieldAlert,
@@ -453,7 +452,7 @@ export default function ExecutiveDashboard() {
   }, [roleScopedDuplicates, search, selectedUnion, selectedDept, selectedRisk]);
 
   // Export to Excel
-  const handleExportExcel = () => {
+  const handleExportExcel = async () => {
     if (!filteredDuplicates || filteredDuplicates.length === 0) {
       alert("রপ্তানির জন্য কোনো ডুপ্লিকেট রেকর্ড পাওয়া যায়নি।");
       return;
@@ -488,6 +487,7 @@ export default function ExecutiveDashboard() {
       };
     });
 
+    const XLSX = await import("xlsx");
     const worksheet = XLSX.utils.json_to_sheet(rows);
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(

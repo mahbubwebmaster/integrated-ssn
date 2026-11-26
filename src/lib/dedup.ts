@@ -122,6 +122,91 @@ export async function processBatchUpload(
   const seenNidsInBatch = new Map<string, number>(); // nid -> rowNumber
   const seenBrnsInBatch = new Map<string, number>(); // brn -> rowNumber
 
+  // ── Batch Pre-fetch: eliminate N+1 DB lookups inside the record loop ──
+  const allNids = new Set<string>();
+  const all13DigitNids = new Set<string>();
+  const allBrns = new Set<string>();
+  const allFullNames = new Set<string>();
+
+  for (const r of records) {
+    const n = normalizeNid(r.nid);
+    const b = normalizeBrn(r.brn);
+    if (n) {
+      allNids.add(n);
+      if (n.length === 13) all13DigitNids.add(n);
+      if (n.length === 17) allNids.add(n.substring(4));
+    }
+    if (b) allBrns.add(b);
+    if (r.fullName && r.guardianName && r.unionName) {
+      allFullNames.add(r.fullName.trim());
+    }
+  }
+
+  const orConditions: any[] = [];
+  if (allNids.size > 0) {
+    orConditions.push({ nid: { in: Array.from(allNids) } });
+  }
+  for (const n13 of all13DigitNids) {
+    orConditions.push({ nid: { endsWith: n13 } });
+  }
+  if (allBrns.size > 0) {
+    orConditions.push({ brn: { in: Array.from(allBrns) } });
+  }
+  if (allFullNames.size > 0) {
+    orConditions.push({ fullName: { in: Array.from(allFullNames) } });
+  }
+
+  const prefetchedBeneficiaries =
+    orConditions.length > 0
+      ? await db.beneficiary.findMany({
+          where: { OR: orConditions },
+          include: {
+            enrollments: {
+              include: {
+                scheme: {
+                  include: { department: true },
+                },
+              },
+            },
+          },
+        })
+      : [];
+
+  const makeNameKey = (fullName?: string | null, guardianName?: string | null, unionName?: string | null, wardNo?: string | null) =>
+    `${(fullName || "").trim()}|${(guardianName || "").trim()}|${(unionName || "").trim()}|${(wardNo || "").trim()}`;
+
+  const byNid = new Map<string, any>();
+  const byNid13 = new Map<string, any>();
+  const byBrn = new Map<string, any>();
+  const byNameKey = new Map<string, any>();
+
+  const indexBeneficiary = (ben: any) => {
+    const bn = normalizeNid(ben.nid);
+    const bb = normalizeBrn(ben.brn);
+    if (bn) {
+      if (!byNid.has(bn)) byNid.set(bn, ben);
+      const last13 = bn.length === 17 ? bn.substring(4) : bn.length === 13 ? bn : null;
+      if (last13 && !byNid13.has(last13)) byNid13.set(last13, ben);
+    }
+    if (bb && !byBrn.has(bb)) byBrn.set(bb, ben);
+    const nk = makeNameKey(ben.fullName, ben.guardianName, ben.unionName, ben.wardNo);
+    if (nk !== "|||" && !byNameKey.has(nk)) byNameKey.set(nk, ben);
+  };
+
+  for (const ben of prefetchedBeneficiaries) {
+    indexBeneficiary(ben);
+  }
+
+  const enrollmentsToCreate: Array<{
+    beneficiaryId: string;
+    schemeId: string;
+    cardNumber: string | null;
+    startDate: Date;
+    status: string;
+    uploadedBatchId: string;
+    uploadedByUserId: string | null;
+  }> = [];
+
   for (let i = 0; i < records.length; i++) {
     const record = records[i];
     const rowNum = record.rowNumber ?? i + 1;
@@ -148,69 +233,26 @@ export async function processBatchUpload(
     if (nid) seenNidsInBatch.set(nid, rowNum);
     if (brn) seenBrnsInBatch.set(brn, rowNum);
 
-    // 2. Database Lookup for Existing Beneficiary
-    let existingBeneficiary = null;
+    // 2. O(1) In-Memory Lookup against Pre-fetched Existing Beneficiaries
+    let existingBeneficiary: any = null;
 
     if (nid) {
-      // Lookup by exact NID or 13/17 digit variant
-      const candidates = await db.beneficiary.findMany({
-        where: {
-          OR: [
-            { nid: nid },
-            ...(nid.length === 13 ? [{ nid: { endsWith: nid } }] : []),
-            ...(nid.length === 17 ? [{ nid: nid.substring(4) }] : []),
-          ],
-        },
-        include: {
-          enrollments: {
-            include: {
-              scheme: {
-                include: { department: true },
-              },
-            },
-          },
-        },
-      });
-
-      if (candidates.length > 0) {
-        existingBeneficiary = candidates[0];
-      }
+      existingBeneficiary =
+        byNid.get(nid) ||
+        (nid.length === 17 ? byNid.get(nid.substring(4)) || byNid13.get(nid.substring(4)) : null) ||
+        (nid.length === 13 ? byNid13.get(nid) : null) ||
+        null;
     }
 
     if (!existingBeneficiary && brn) {
-      existingBeneficiary = await db.beneficiary.findFirst({
-        where: { brn: brn },
-        include: {
-          enrollments: {
-            include: {
-              scheme: {
-                include: { department: true },
-              },
-            },
-          },
-        },
-      });
+      existingBeneficiary = byBrn.get(brn) || null;
     }
 
     // Fallback: Check exact Name + Guardian + Union + Ward match
     if (!existingBeneficiary && record.fullName && record.guardianName && record.unionName) {
-      existingBeneficiary = await db.beneficiary.findFirst({
-        where: {
-          fullName: { equals: record.fullName.trim() },
-          guardianName: { equals: record.guardianName.trim() },
-          unionName: { equals: record.unionName.trim() },
-          wardNo: { equals: record.wardNo.trim() },
-        },
-        include: {
-          enrollments: {
-            include: {
-              scheme: {
-                include: { department: true },
-              },
-            },
-          },
-        },
-      });
+      existingBeneficiary =
+        byNameKey.get(makeNameKey(record.fullName, record.guardianName, record.unionName, record.wardNo)) ||
+        null;
     }
 
     let beneficiaryId: string;
@@ -221,7 +263,12 @@ export async function processBatchUpload(
 
       // Check existing enrollments for redundancy
       for (const enr of existingBeneficiary.enrollments) {
-        if (enr.status === "Active" || enr.status === "Flagged") {
+        if (
+          enr.status === "Active" ||
+          enr.status === "ACTIVE" ||
+          enr.status === "Flagged" ||
+          enr.status === "FLAGGED"
+        ) {
           isFlagged = true;
           existingDetail = {
             beneficiaryName: existingBeneficiary.fullName,
@@ -261,10 +308,15 @@ export async function processBatchUpload(
         },
       });
       beneficiaryId = created.id;
+      const indexedCreated = { ...created, enrollments: [] as any[] };
+      indexBeneficiary(indexedCreated);
+      existingBeneficiary = indexedCreated;
     }
 
     // Determine status
     const enrollmentStatus = isFlagged ? "Flagged" : "Active";
+    const nowDate = new Date();
+    const cleanCardNumber = record.cardNumber ? String(record.cardNumber).trim() : null;
 
     if (isFlagged) {
       flaggedCount++;
@@ -282,17 +334,30 @@ export async function processBatchUpload(
       activeCount++;
     }
 
-    // Create Enrollment Record
-    await db.enrollment.create({
-      data: {
-        beneficiaryId: beneficiaryId,
-        schemeId: schemeId,
-        cardNumber: record.cardNumber ? String(record.cardNumber).trim() : null,
-        startDate: new Date(),
-        status: enrollmentStatus,
-        uploadedBatchId: batchId,
-        uploadedByUserId: uploadedByUserId || null,
-      },
+    // Keep in-memory enrollment list updated for any subsequent rows in this batch
+    existingBeneficiary.enrollments.push({
+      schemeId,
+      status: enrollmentStatus,
+      cardNumber: cleanCardNumber,
+      startDate: nowDate,
+      scheme: targetScheme,
+    });
+
+    // Queue Enrollment Record for single batch insert
+    enrollmentsToCreate.push({
+      beneficiaryId: beneficiaryId,
+      schemeId: schemeId,
+      cardNumber: cleanCardNumber,
+      startDate: nowDate,
+      status: enrollmentStatus,
+      uploadedBatchId: batchId,
+      uploadedByUserId: uploadedByUserId || null,
+    });
+  }
+
+  if (enrollmentsToCreate.length > 0) {
+    await db.enrollment.createMany({
+      data: enrollmentsToCreate,
     });
   }
 

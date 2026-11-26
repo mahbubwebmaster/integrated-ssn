@@ -102,34 +102,66 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (session?.user) {
       const u = session.user;
       const newUser = buildSessionUser(u);
+
+      // Hydrate immediately from sessionStorage cache if present for zero-latency profile display
+      let cachedProfile: Partial<UserSession> | null = null;
+      if (typeof window !== "undefined" && u.id) {
+        try {
+          const raw = sessionStorage.getItem(`ssnp_profile_cache_${u.id}`);
+          if (raw) {
+            const parsed = JSON.parse(raw);
+            if (parsed && parsed.ts && Date.now() - parsed.ts < 5 * 60 * 1000 && parsed.data) {
+              cachedProfile = parsed.data;
+            }
+          }
+        } catch {
+          // Ignore storage parse errors
+        }
+      }
+
       setCurrentUserState((prev) => ({
         ...prev,
         ...newUser,
+        ...(cachedProfile || {}),
       }));
       setLoading(false);
 
-      // Also asynchronously fetch user profile to populate avatar/phone if needed
-      if (u.id) {
+      // Refresh profile in background only if not freshly cached
+      if (u.id && !cachedProfile) {
         fetch(`/api/auth/profile?userId=${encodeURIComponent(u.id)}`)
           .then((res) => (res.ok ? res.json() : null))
           .then((data) => {
             if (data?.success && data?.user) {
               const p = data.user;
+              const profilePatch: Partial<UserSession> = {
+                name: p.name || undefined,
+                designation: p.designation ?? null,
+                phone: p.phone ?? null,
+                phoneVerified: Boolean(p.phoneVerified),
+                image: p.image ?? null,
+                isEmailVerified: Boolean(p.isEmailVerified),
+                departmentId: p.departmentId || null,
+                departmentName: p.departmentName || null,
+                departmentNameBn: p.departmentNameBn || null,
+                departmentNameEn: p.departmentNameEn || null,
+                district: p.district || "নেত্রকোণা",
+                upazilaName: p.upazilaName !== undefined ? p.upazilaName : null,
+                unionName: p.unionName || null,
+              };
+              if (typeof window !== "undefined") {
+                try {
+                  sessionStorage.setItem(
+                    `ssnp_profile_cache_${u.id}`,
+                    JSON.stringify({ ts: Date.now(), data: profilePatch })
+                  );
+                } catch {
+                  // Ignore quota errors
+                }
+              }
               setCurrentUserState((prev) => ({
                 ...prev,
-                name: p.name || prev.name,
-                designation: p.designation ?? prev.designation,
-                phone: p.phone ?? prev.phone,
-                phoneVerified: Boolean(p.phoneVerified),
-                image: p.image ?? prev.image,
-                isEmailVerified: Boolean(p.isEmailVerified),
-                departmentId: p.departmentId || prev.departmentId,
-                departmentName: p.departmentName || prev.departmentName,
-                departmentNameBn: p.departmentNameBn || prev.departmentNameBn,
-                departmentNameEn: p.departmentNameEn || prev.departmentNameEn,
-                district: p.district || prev.district || "নেত্রকোণা",
-                upazilaName: p.upazilaName !== undefined ? p.upazilaName : prev.upazilaName,
-                unionName: p.unionName || prev.unionName,
+                ...profilePatch,
+                name: profilePatch.name || prev.name,
               }));
             }
           })
@@ -141,27 +173,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, [session, status]);
 
-  // Load users safely without throwing unhandled network errors
+  // Load users safely in background (admin roles only — never blocks UI loading state)
   useEffect(() => {
     let isMounted = true;
 
     async function loadUsersSafe() {
-      // Do not attempt to fetch protected user list if there is no active session
-      if (!session?.user) {
-        setLoading(false);
+      const userRole = (session?.user as any)?.role;
+      if (!session?.user || (userRole !== "SUPER_ADMIN" && userRole !== "UPAZILA_ADMIN")) {
         return;
       }
 
       try {
-        setLoading(true);
         const res = await fetch("/api/auth/users").catch(() => null);
-        if (!res || !res.ok) {
-          if (isMounted) setLoading(false);
-          return;
-        }
+        if (!res || !res.ok) return;
         const data = await res.json().catch(() => null);
         if (!isMounted || !data || !data.success || !Array.isArray(data.users)) {
-          if (isMounted) setLoading(false);
           return;
         }
 
@@ -190,10 +216,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setAllUsers(mappedUsers);
       } catch {
         // Silently fallback
-      } finally {
-        if (isMounted) {
-          setLoading(false);
-        }
       }
     }
 
@@ -221,6 +243,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const updateUserProfile = (updated: Partial<UserSession>) => {
     setCurrentUserState((prev) => {
       const next = { ...prev, ...updated };
+      if (typeof window !== "undefined" && next.id) {
+        try {
+          sessionStorage.setItem(
+            `ssnp_profile_cache_${next.id}`,
+            JSON.stringify({ ts: Date.now(), data: next })
+          );
+        } catch {
+          // Ignore quota errors
+        }
+      }
       setAllUsers((users) =>
         users.map((u) => (u.id === next.id ? { ...u, ...updated } : u))
       );

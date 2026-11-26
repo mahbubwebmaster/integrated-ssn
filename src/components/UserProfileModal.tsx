@@ -91,20 +91,46 @@ export function UserProfileModal({ isOpen, onClose }: UserProfileModalProps) {
     setTimeout(() => setErrorNotice(null), 5000);
   };
 
-  // Handle Photo Upload
+  // Handle Photo Upload with client-side 256x256 JPEG compression (~15-25 KB)
   const handlePhotoSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    if (file.size > 2 * 1024 * 1024) {
-      showError(language === "bn" ? "ছবির সাইজ সর্বোচ্চ ২ মেগাবাইট হতে হবে।" : "Photo must be less than 2MB.");
+    if (file.size > 5 * 1024 * 1024) {
+      showError(language === "bn" ? "ছবির সাইজ সর্বোচ্চ ৫ মেগাবাইট হতে হবে।" : "Photo must be less than 5MB.");
       return;
     }
 
     const reader = new FileReader();
     reader.onload = (evt) => {
-      const result = evt.target?.result as string;
-      setPhotoDataUrl(result);
+      const rawDataUrl = evt.target?.result as string;
+      const img = new Image();
+      img.onload = () => {
+        const MAX_DIM = 256;
+        let { width, height } = img;
+        if (width > MAX_DIM || height > MAX_DIM) {
+          if (width > height) {
+            height = Math.round((height * MAX_DIM) / width);
+            width = MAX_DIM;
+          } else {
+            width = Math.round((width * MAX_DIM) / height);
+            height = MAX_DIM;
+          }
+        }
+        const canvas = document.createElement("canvas");
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext("2d");
+        if (ctx) {
+          ctx.drawImage(img, 0, 0, width, height);
+          const compressed = canvas.toDataURL("image/jpeg", 0.8);
+          setPhotoDataUrl(compressed);
+        } else {
+          setPhotoDataUrl(rawDataUrl);
+        }
+      };
+      img.onerror = () => setPhotoDataUrl(rawDataUrl);
+      img.src = rawDataUrl;
     };
     reader.readAsDataURL(file);
   };

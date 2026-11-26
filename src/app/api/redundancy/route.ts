@@ -69,6 +69,13 @@ export async function GET(request: Request) {
     let departmentId = searchParams.get("departmentId")?.trim() || "";
     const gender = searchParams.get("gender")?.trim() || "";
     const search = searchParams.get("search")?.trim().toLowerCase() || "";
+    const riskParam = searchParams.get("risk")?.trim().toUpperCase() || "ALL";
+    const pageParam = searchParams.get("page");
+    const limitParam = searchParams.get("limit");
+    const exportAll = searchParams.get("all") === "true";
+    const isPaginated = !exportAll && (pageParam !== null || limitParam !== null);
+    const page = Math.max(1, parseInt(pageParam || "1", 10) || 1);
+    const limit = Math.max(1, Math.min(200, parseInt(limitParam || "10", 10) || 10));
 
     // Resolve user jurisdiction scoping via reusable data scope helper
     const user = await getSessionUser(request);
@@ -391,6 +398,19 @@ export async function GET(request: Request) {
       }
     }
 
+    // Apply optional risk filter before pagination & summary
+    const finalDuplicateList =
+      riskParam && riskParam !== "ALL"
+        ? duplicateList.filter((item) => item.riskLevel === riskParam)
+        : duplicateList;
+
+    const totalItems = finalDuplicateList.length;
+    const totalPages = isPaginated ? Math.max(1, Math.ceil(totalItems / limit)) : 1;
+    const safePage = Math.min(page, totalPages);
+    const paginatedDuplicates = isPaginated
+      ? finalDuplicateList.slice((safePage - 1) * limit, safePage * limit)
+      : finalDuplicateList.slice(0, exportAll ? 10000 : 500);
+
     // Available distinct filter options from database
     const availableUpazilas = Array.from(new Set(beneficiaries.map((b) => b.upazilaName))).filter(Boolean).sort();
     const availableUnions = Array.from(new Set(beneficiaries.map((b) => b.unionName))).filter(Boolean).sort();
@@ -399,17 +419,23 @@ export async function GET(request: Request) {
     return NextResponse.json({
       success: true,
       summary: {
-        totalDuplicateBeneficiaries: duplicateList.length,
-        totalRedundantEnrollments,
-        totalMonthlyLeakAmount: totalMonthlyLeak,
-        totalYearlyLeakAmount: totalYearlyLeak,
+        totalDuplicateBeneficiaries: totalItems,
+        totalRedundantEnrollments: finalDuplicateList.reduce((acc, item) => acc + item.excessSchemes.length, 0),
+        totalMonthlyLeakAmount: finalDuplicateList.reduce((acc, item) => acc + item.excessMonthlyAmount, 0),
+        totalYearlyLeakAmount: finalDuplicateList.reduce((acc, item) => acc + item.excessYearlyAmount, 0),
+      },
+      pagination: {
+        total: totalItems,
+        page: safePage,
+        limit: isPaginated ? limit : totalItems,
+        totalPages,
       },
       filters: {
         upazilas: availableUpazilas,
         unions: availableUnions,
         wards: availableWards,
       },
-      duplicates: duplicateList,
+      duplicates: paginatedDuplicates,
       breakdownByDepartment: Array.from(deptLeakMap.values()).sort((a, b) => b.excessAmount - a.excessAmount),
       breakdownByUpazila: Array.from(upazilaLeakMap.values()).sort((a, b) => b.excessMonthlyAmount - a.excessMonthlyAmount),
       breakdownByUnion: Array.from(unionLeakMap.values()).sort((a, b) => b.excessMonthlyAmount - a.excessMonthlyAmount),
