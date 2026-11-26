@@ -94,6 +94,12 @@ export async function GET(request: Request) {
 
     // Resolve administrative data scope for the user
     const user = await getSessionUser(request);
+    if (!user) {
+      return NextResponse.json(
+        { success: false, error: "অননুমোদিত অ্যাক্সেস। অনুগ্রহ করে লগইন করুন (Unauthorized)." },
+        { status: 401 }
+      );
+    }
     const scopeFilter = getBeneficiaryScope(user, {
       upazila,
       departmentId,
@@ -630,7 +636,38 @@ export async function PATCH(request: Request) {
     // Check if beneficiary exists
     const existing = await prisma.beneficiary.findUnique({
       where: { id },
+      include: {
+        enrollments: {
+          include: { scheme: true },
+        },
+      },
     });
+
+    if (existing) {
+      const role = session.user.role;
+      const userUpazila = (session.user as any).upazilaName;
+      const userDeptId = session.user.departmentId;
+
+      if (role === "UPAZILA_ADMIN" && userUpazila && existing.upazilaName !== userUpazila) {
+        return NextResponse.json(
+          { success: false, error: "অ্যাক্সেস ডিনাইড: অন্য উপজেলার উপকারভোগীর তথ্য পরিবর্তন করা যাবে না (Forbidden)" },
+          { status: 403 }
+        );
+      }
+
+      if (role === "DEPT_OFFICER" || role === "DEPARTMENT_OFFICER") {
+        const upazilaMismatch = Boolean(userUpazila && existing.upazilaName !== userUpazila);
+        const deptMismatch = Boolean(
+          userDeptId && !existing.enrollments.some((e) => e.scheme.departmentId === userDeptId)
+        );
+        if (upazilaMismatch || deptMismatch) {
+          return NextResponse.json(
+            { success: false, error: "অ্যাক্সেস ডিনাইড: নিজ দপ্তর ও উপজেলার বাইরের উপকারভোগীর তথ্য পরিবর্তন করা যাবে না (Forbidden)" },
+            { status: 403 }
+          );
+        }
+      }
+    }
 
     if (!existing) {
       return NextResponse.json(

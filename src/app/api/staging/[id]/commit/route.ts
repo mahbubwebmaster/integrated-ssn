@@ -39,6 +39,17 @@ export async function POST(
     }
 
     const { id } = await params;
+    if (!/^[A-Za-z0-9_-]+$/.test(id)) {
+      return NextResponse.json({ success: false, error: "Invalid staged batch ID" }, { status: 400 });
+    }
+
+    if (session.user.role === "UNION_VIEWER") {
+      return NextResponse.json(
+        { success: false, error: "অননুমোদিত: ইউনিয়ন পর্যবেক্ষকের ডেটা কমিট করার অনুমতি নেই (Forbidden)" },
+        { status: 403 }
+      );
+    }
+
     const manifest = readManifest();
     const stagedIndex = manifest.findIndex((m) => m.id === id);
 
@@ -47,7 +58,22 @@ export async function POST(
     }
 
     const stagedItem = manifest[stagedIndex];
-    const dataFilePath = path.join(STAGING_DIR, `${id}.json`);
+    const isAdmin =
+      session.user.role === "SUPER_ADMIN" ||
+      session.user.role === "DISTRICT_ADMIN" ||
+      session.user.role === "UPAZILA_ADMIN";
+    if (!isAdmin && stagedItem.uploadedByUserId !== session.user.id) {
+      return NextResponse.json(
+        { success: false, error: "অননুমোদিত: অন্যের স্টেজড ব্যাচ কমিট করার অনুমতি নেই (Forbidden)" },
+        { status: 403 }
+      );
+    }
+
+    const resolvedDir = path.resolve(STAGING_DIR);
+    const dataFilePath = path.resolve(STAGING_DIR, `${id}.json`);
+    if (!dataFilePath.startsWith(resolvedDir + path.sep)) {
+      return NextResponse.json({ success: false, error: "Invalid staged file path" }, { status: 400 });
+    }
 
     if (!fs.existsSync(dataFilePath)) {
       return NextResponse.json({ success: false, error: "Staged data file is missing" }, { status: 404 });

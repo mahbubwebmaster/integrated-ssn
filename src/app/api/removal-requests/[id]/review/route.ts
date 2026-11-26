@@ -6,7 +6,7 @@ import { auth } from "@/auth";
  * Helper to resolve the authenticated reviewer from NextAuth session,
  * custom auth headers, or body parameter.
  */
-async function resolveReviewer(request: Request, bodyUserId?: string) {
+async function resolveReviewer(_request: Request, _bodyUserId?: string) {
   let session = null;
   try {
     session = await auth();
@@ -21,32 +21,7 @@ async function resolveReviewer(request: Request, bodyUserId?: string) {
     if (user) return user;
   }
 
-  // Fallback to headers or explicit parameter strictly in development/test mode
-  if (process.env.NODE_ENV !== "production") {
-    const headerUserId =
-      request.headers.get("x-user-id") ||
-      bodyUserId ||
-      new URL(request.url).searchParams.get("userId");
-
-    if (headerUserId) {
-      const user = await prisma.user.findUnique({
-        where: { id: headerUserId },
-      });
-      if (user) return user;
-    }
-
-    const headerEmail =
-      request.headers.get("x-user-email") ||
-      new URL(request.url).searchParams.get("userEmail");
-
-    if (headerEmail) {
-      const user = await prisma.user.findUnique({
-        where: { email: headerEmail.toLowerCase().trim() },
-      });
-      if (user) return user;
-    }
-  }
-
+  // SECURITY: Header/query/body auth fallback removed — valid NextAuth session required.
   return null;
 }
 

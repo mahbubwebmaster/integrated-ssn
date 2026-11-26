@@ -4,10 +4,36 @@ import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
 import { sendOtpEmail } from "@/lib/email";
 
-const AUTH_SECRET = process.env.AUTH_SECRET || "ssnp-bangladesh-local-gov-secret-key-2026-audit-trail-sec";
+function getAuthSecret(): string {
+  const secret = process.env.AUTH_SECRET;
+  if (!secret) {
+    throw new Error("AUTH_SECRET environment variable is required but not set.");
+  }
+  return secret;
+}
+
+// Simple in-memory rate limiter: max 5 requests per 15 minutes per key
+const RATE_LIMIT_WINDOW_MS = 15 * 60 * 1000;
+const RATE_LIMIT_MAX_ATTEMPTS = 5;
+const otpRateLimitMap = new Map<string, { count: number; resetAt: number }>();
+
+function isRateLimited(key: string): boolean {
+  const now = Date.now();
+  const entry = otpRateLimitMap.get(key);
+  if (!entry || now > entry.resetAt) {
+    otpRateLimitMap.set(key, { count: 1, resetAt: now + RATE_LIMIT_WINDOW_MS });
+    return false;
+  }
+  entry.count += 1;
+  return entry.count > RATE_LIMIT_MAX_ATTEMPTS;
+}
 
 export async function POST(request: Request) {
   try {
+    const clientIp =
+      request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
+      request.headers.get("x-real-ip") ||
+      "unknown";
     const body = await request.json();
     const { action } = body;
 
@@ -20,6 +46,16 @@ export async function POST(request: Request) {
         return NextResponse.json(
           { success: false, error: "দয়া করে আপনার নিবন্ধিত ইমেইল ঠিকানা প্রদান করুন।" },
           { status: 400 }
+        );
+      }
+
+      if (isRateLimited(`otp_req:${email}`) || isRateLimited(`otp_ip:${clientIp}`)) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: "অতিরিক্ত অনুরোধ করা হয়েছে। অনুগ্রহ করে ১৫ মিনিট পর আবার চেষ্টা করুন।",
+          },
+          { status: 429 }
         );
       }
 
@@ -37,14 +73,14 @@ export async function POST(request: Request) {
         );
       }
 
-      // Generate a secure 6-digit OTP
-      const otp = Math.floor(100000 + Math.random() * 900000).toString();
+      // Generate a cryptographically secure 6-digit OTP
+      const otp = crypto.randomInt(100000, 1000000).toString();
       // Expiry: 15 minutes
       const expiry = Date.now() + 15 * 60 * 1000;
 
       // Cryptographic signature binding userId, email, otp, expiry, and current passwordHash
       const signature = crypto
-        .createHmac("sha256", AUTH_SECRET)
+        .createHmac("sha256", getAuthSecret())
         .update(`${user.id}:${user.email.toLowerCase()}:${otp}:${expiry}:${user.passwordHash}`)
         .digest("hex");
 
@@ -56,9 +92,6 @@ export async function POST(request: Request) {
           signature,
         })
       ).toString("base64url");
-
-      // Log the OTP in server console for local testing / developer inspection
-      console.log(`[AUTH FORGOT PASSWORD] Generated OTP for ${email}: ${otp}`);
 
       // Record Audit Trail
       try {
@@ -141,13 +174,29 @@ export async function POST(request: Request) {
         );
       }
 
+      if (isRateLimited(`otp_verify:${userId}`) || isRateLimited(`otp_verify_ip:${clientIp}`)) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: "অতিরিক্ত ভুল চেষ্টার কারণে সাময়িকভাবে ব্লক করা হয়েছে। ১৫ মিনিট পর আবার চেষ্টা করুন।",
+          },
+          { status: 429 }
+        );
+      }
+
       // Recompute expected HMAC signature with provided OTP
       const expectedSignature = crypto
-        .createHmac("sha256", AUTH_SECRET)
+        .createHmac("sha256", getAuthSecret())
         .update(`${user.id}:${user.email.toLowerCase()}:${String(otp).trim()}:${expiry}:${user.passwordHash}`)
         .digest("hex");
 
-      if (signature !== expectedSignature) {
+      const sigBuf = Buffer.from(String(signature || ""), "hex");
+      const expectedBuf = Buffer.from(expectedSignature, "hex");
+      const isSignatureValid =
+        sigBuf.length === expectedBuf.length &&
+        crypto.timingSafeEqual(sigBuf, expectedBuf);
+
+      if (!isSignatureValid) {
         return NextResponse.json(
           { success: false, error: "ভুল যাচাইকরণ কোড (Invalid OTP) প্রবেশ করানো হয়েছে।" },
           { status: 400 }

@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { auth } from "@/auth";
 
 interface ExtractedNidData {
   nameBn: string;
@@ -9,11 +10,26 @@ interface ExtractedNidData {
   gender?: "Male" | "Female" | "Other";
 }
 
+// Maximum allowed image size: 5 MB (base64 encoded ≈ 6.67 MB string)
+const MAX_BASE64_LENGTH = 7 * 1024 * 1024;
+
 export async function POST(request: Request) {
   try {
+    // ── Authentication check ──────────────────────────────────────────
+    const session = await auth();
+    if (!session?.user) {
+      return NextResponse.json(
+        {
+          success: false,
+          error:
+            "অননুমোদিত অ্যাক্সেস। OCR ব্যবহার করতে অনুগ্রহ করে লগইন করুন (Unauthorized – please log in).",
+        },
+        { status: 401 }
+      );
+    }
+
     let base64Data = "";
     let mimeType = "image/jpeg";
-    let clientApiKey = "";
     let isDemo = false;
 
     const contentType = request.headers.get("content-type") || "";
@@ -22,12 +38,12 @@ export async function POST(request: Request) {
       const body = await request.json();
       base64Data = body.imageBase64 || "";
       mimeType = body.mimeType || "image/jpeg";
-      clientApiKey = body.apiKey || "";
+      // clientApiKey from body is intentionally ignored — server-side key only
       isDemo = Boolean(body.isDemo);
     } else if (contentType.includes("multipart/form-data")) {
       const formData = await request.formData();
       const file = formData.get("file") as File | null;
-      clientApiKey = (formData.get("apiKey") as string) || "";
+      // clientApiKey from form is intentionally ignored — server-side key only
       isDemo = formData.get("isDemo") === "true";
 
       if (file) {
@@ -72,11 +88,22 @@ export async function POST(request: Request) {
       );
     }
 
+    // ── Image size guard (max ~5 MB) ──────────────────────────────────
+    if (base64Data.length > MAX_BASE64_LENGTH) {
+      return NextResponse.json(
+        {
+          success: false,
+          error:
+            "ছবির আকার অনুমোদিত সীমা (৫ MB) অতিক্রম করেছে। অনুগ্রহ করে ছোট আকারের ছবি ব্যবহার করুন।",
+        },
+        { status: 413 }
+      );
+    }
+
+    // Use only server-side API key — never accept keys from the client
     const apiKey =
       process.env.GEMINI_API_KEY ||
       process.env.GOOGLE_API_KEY ||
-      clientApiKey ||
-      request.headers.get("x-gemini-key") ||
       "";
 
     if (!apiKey) {

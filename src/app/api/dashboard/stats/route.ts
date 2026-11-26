@@ -23,6 +23,12 @@ export async function GET(request: Request) {
 
     // Resolve user session and administrative scope
     const user = await getSessionUser(request);
+    if (!user) {
+      return NextResponse.json(
+        { success: false, error: "অননুমোদিত অ্যাক্সেস। অনুগ্রহ করে লগইন করুন (Unauthorized)." },
+        { status: 401 }
+      );
+    }
 
     // Check fast cache
     const cacheKey = `${user?.id || "anon"}_${user?.role || "GUEST"}_${upazilaParam}_${departmentIdParam}`;

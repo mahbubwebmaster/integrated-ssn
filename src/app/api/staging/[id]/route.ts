@@ -19,6 +19,23 @@ function writeManifest(items: any[]) {
   fs.writeFileSync(MANIFEST_FILE, JSON.stringify(items, null, 2));
 }
 
+const SAFE_ID_REGEX = /^[A-Za-z0-9_-]+$/;
+
+function getSafeStagingFilePath(id: string): string | null {
+  if (!SAFE_ID_REGEX.test(id)) return null;
+  const resolvedDir = path.resolve(STAGING_DIR);
+  const resolvedFile = path.resolve(STAGING_DIR, `${id}.json`);
+  if (!resolvedFile.startsWith(resolvedDir + path.sep)) return null;
+  return resolvedFile;
+}
+
+function canAccessStagedItem(sessionUser: any, item: any): boolean {
+  const role = sessionUser?.role;
+  if (role === "UNION_VIEWER") return false;
+  if (role === "SUPER_ADMIN" || role === "DISTRICT_ADMIN" || role === "UPAZILA_ADMIN") return true;
+  return Boolean(sessionUser?.id && item?.uploadedByUserId === sessionUser.id);
+}
+
 // GET /api/staging/[id]
 export async function GET(
   request: Request,
@@ -31,6 +48,11 @@ export async function GET(
     }
 
     const { id } = await params;
+    const dataFilePath = getSafeStagingFilePath(id);
+    if (!dataFilePath) {
+      return NextResponse.json({ success: false, error: "Invalid staged batch ID" }, { status: 400 });
+    }
+
     const manifest = readManifest();
     const item = manifest.find((m) => m.id === id);
 
@@ -38,7 +60,13 @@ export async function GET(
       return NextResponse.json({ success: false, error: "Staged batch not found" }, { status: 404 });
     }
 
-    const dataFilePath = path.join(STAGING_DIR, `${id}.json`);
+    if (!canAccessStagedItem(session.user, item)) {
+      return NextResponse.json(
+        { success: false, error: "অননুমোদিত: এই স্টেজড ব্যাচ দেখার অনুমতি আপনার নেই (Forbidden)" },
+        { status: 403 }
+      );
+    }
+
     let rawRows: any[] = [];
     if (fs.existsSync(dataFilePath)) {
       rawRows = JSON.parse(fs.readFileSync(dataFilePath, "utf8"));
@@ -68,11 +96,27 @@ export async function DELETE(
     }
 
     const { id } = await params;
+    const dataFilePath = getSafeStagingFilePath(id);
+    if (!dataFilePath) {
+      return NextResponse.json({ success: false, error: "Invalid staged batch ID" }, { status: 400 });
+    }
+
     let manifest = readManifest();
+    const item = manifest.find((m) => m.id === id);
+    if (!item) {
+      return NextResponse.json({ success: false, error: "Staged batch not found" }, { status: 404 });
+    }
+
+    if (!canAccessStagedItem(session.user, item)) {
+      return NextResponse.json(
+        { success: false, error: "অননুমোদিত: এই স্টেজড ব্যাচ মুছে ফেলার অনুমতি আপনার নেই (Forbidden)" },
+        { status: 403 }
+      );
+    }
+
     manifest = manifest.filter((m) => m.id !== id);
     writeManifest(manifest);
 
-    const dataFilePath = path.join(STAGING_DIR, `${id}.json`);
     if (fs.existsSync(dataFilePath)) {
       try {
         fs.unlinkSync(dataFilePath);

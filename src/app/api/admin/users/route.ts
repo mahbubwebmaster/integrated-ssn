@@ -3,7 +3,7 @@ import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { hashPassword } from "@/lib/password";
 
-async function resolveAdminUser(request: Request) {
+async function resolveAdminUser(_request: Request) {
   let session = null;
   try {
     session = await auth();
@@ -16,20 +16,8 @@ async function resolveAdminUser(request: Request) {
     if (user) return user;
   }
 
-  // Allow header fallback strictly during non-production testing
-  if (process.env.NODE_ENV !== "production") {
-    const headerUserId = request.headers.get("x-user-id");
-    if (headerUserId) {
-      const user = await prisma.user.findUnique({ where: { id: headerUserId } });
-      if (user) return user;
-    }
-
-    const headerEmail = request.headers.get("x-user-email");
-    if (headerEmail) {
-      const user = await prisma.user.findUnique({ where: { email: headerEmail.toLowerCase().trim() } });
-      if (user) return user;
-    }
-  }
+  // SECURITY: Header-based auth bypass removed — all environments require
+  // a valid NextAuth session. No x-user-id / x-user-email fallback.
 
   return null;
 }
@@ -223,9 +211,9 @@ export async function POST(request: Request) {
     const body = await request.json();
     const { name, designation, email, password, role, departmentId, upazilaName, unionName, wardNo } = body;
 
-    if (!name || !email || !role) {
+    if (!name || !email || !role || !password || String(password).length < 6) {
       return NextResponse.json(
-        { success: false, error: "Name, email and role are required." },
+        { success: false, error: "Name, email, role, and a password (min 6 characters) are required." },
         { status: 400 }
       );
     }
@@ -264,7 +252,7 @@ export async function POST(request: Request) {
         name: name.trim(),
         designation: designation ? String(designation).trim() : (role === "DISTRICT_ADMIN" ? "জেলা প্রশাসক ও জেলা ম্যাজিস্ট্রেট" : null),
         email: email.trim().toLowerCase(),
-        passwordHash: hashPassword(password || "admin123"),
+        passwordHash: hashPassword(password),
         role,
         departmentId: role === "DEPT_OFFICER" ? (departmentId || null) : null,
         district: "নেত্রকোণা",

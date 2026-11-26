@@ -72,6 +72,12 @@ export async function GET(request: Request) {
 
     // Resolve user jurisdiction scoping via reusable data scope helper
     const user = await getSessionUser(request);
+    if (!user) {
+      return NextResponse.json(
+        { success: false, error: "অননুমোদিত অ্যাক্সেস। অনুগ্রহ করে লগইন করুন (Unauthorized)." },
+        { status: 401 }
+      );
+    }
     const scopeFilter = getBeneficiaryScope(user, {
       upazila,
       departmentId,

@@ -4,12 +4,27 @@ import { auth } from "@/auth";
 
 export async function GET(request: Request) {
   try {
+    const session = await auth();
+    if (!session?.user) {
+      return NextResponse.json(
+        { success: false, error: "অননুমোদিত অ্যাক্সেস। অনুগ্রহ করে লগইন করুন (Unauthorized)." },
+        { status: 401 }
+      );
+    }
+
     const { searchParams } = new URL(request.url);
     const departmentId = searchParams.get("departmentId") || "";
     const status = searchParams.get("status") || "";
 
     const whereClause: any = {};
-    if (departmentId) {
+    const userRole = session.user.role;
+    if (userRole === "DEPT_OFFICER" || userRole === "DEPARTMENT_OFFICER") {
+      if (session.user.departmentId) {
+        whereClause.departmentId = session.user.departmentId;
+      } else {
+        return NextResponse.json({ success: true, requests: [] });
+      }
+    } else if (departmentId) {
       whereClause.departmentId = departmentId;
     }
     if (status) {

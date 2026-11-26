@@ -11,9 +11,23 @@ export async function GET() {
       return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
     }
 
+    const userRole = session.user.role;
+    if (userRole !== "SUPER_ADMIN" && userRole !== "UPAZILA_ADMIN") {
+      return NextResponse.json(
+        { success: false, error: "অননুমোদিত: শুধুমাত্র সুপার অ্যাডমিন বা উপজেলা অ্যাডমিন ইউজার তালিকা দেখতে পারেন (Forbidden)" },
+        { status: 403 }
+      );
+    }
+
     await ensureDefaultMasterData();
 
+    const whereClause =
+      userRole === "UPAZILA_ADMIN" && (session.user as any).upazilaName
+        ? { upazilaName: (session.user as any).upazilaName }
+        : {};
+
     const users = await prisma.user.findMany({
+      where: whereClause,
       select: {
         id: true,
         name: true,
@@ -62,9 +76,9 @@ export async function POST(request: Request) {
     const body = await request.json();
     const { name, designation, email, role, departmentId, district, upazilaName, unionName, wardNo, password, isActive } = body;
 
-    if (!name || !email || !role) {
+    if (!name || !email || !role || !password || String(password).length < 6) {
       return NextResponse.json(
-        { success: false, error: "Name, email and role are required." },
+        { success: false, error: "Name, email, role, and a password (min 6 characters) are required." },
         { status: 400 }
       );
     }
@@ -74,7 +88,7 @@ export async function POST(request: Request) {
         name: name.trim(),
         designation: designation ? String(designation).trim() : null,
         email: email.trim().toLowerCase(),
-        passwordHash: hashPassword(password || "password123"),
+        passwordHash: hashPassword(String(password)),
         role,
         departmentId: departmentId || null,
         district: district || "নেত্রকোণা",

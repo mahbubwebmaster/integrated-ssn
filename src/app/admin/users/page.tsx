@@ -94,7 +94,7 @@ export default function AdminUsersPage() {
   const [newName, setNewName] = useState("");
   const [newDesignation, setNewDesignation] = useState("");
   const [newEmail, setNewEmail] = useState("");
-  const [newPassword, setNewPassword] = useState("admin123");
+  const [newPassword, setNewPassword] = useState("");
   const [newRole, setNewRole] = useState<string>("DEPT_OFFICER");
   const [newDeptId, setNewDeptId] = useState("");
   const [newUpazilaName, setNewUpazilaName] = useState(currentUser.upazilaName || "নেত্রকোণা সদর");
@@ -257,7 +257,7 @@ export default function AdminUsersPage() {
         setNewName("");
         setNewDesignation("");
         setNewEmail("");
-        setNewPassword("admin123");
+        setNewPassword("");
         await fetchUsers(1, pageSize);
       } else {
         alert(data.error || (language === "bn" ? "ইউজার তৈরিতে ব্যর্থ হয়েছে" : "Failed to create user"));
@@ -858,7 +858,7 @@ export default function AdminUsersPage() {
                               disabled={isUpazilaAdmin && u.role === "SUPER_ADMIN"}
                               onClick={() => {
                                 setTargetUser(u);
-                                setResetNewPass("admin123");
+                                setResetNewPass("");
                                 setShowResetModal(true);
                               }}
                               className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 text-[11px] font-semibold transition-all disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"

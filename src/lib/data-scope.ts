@@ -39,21 +39,8 @@ export async function getSessionUser(request?: Request): Promise<UserScopeIdenti
     console.warn("getSessionUser: NextAuth session check skipped or failed:", e);
   }
 
-  // Fallback to custom request headers strictly during non-production testing
-  if (request && process.env.NODE_ENV !== "production") {
-    const role = request.headers.get("x-user-role");
-    if (role) {
-      return {
-        role,
-        districtName: request.headers.get("x-user-district") || "নেত্রকোণা",
-        upazilaName: request.headers.get("x-user-upazila") || null,
-        departmentId: request.headers.get("x-user-department-id") || null,
-        unionName: request.headers.get("x-user-union") || null,
-        id: request.headers.get("x-user-id") || null,
-        email: request.headers.get("x-user-email") || null,
-      };
-    }
-  }
+  // SECURITY: Header-based auth bypass removed — all environments require
+  // a valid NextAuth session. No x-user-role / x-user-id header fallback.
 
   return null;
 }
@@ -70,7 +57,12 @@ export function getEnrollmentScope(
   user: UserScopeIdentity | null | undefined,
   options?: ScopeOptions
 ) {
-  const role = user?.role || "SUPER_ADMIN";
+  // SECURITY: Fail-closed if unauthenticated — never default to SUPER_ADMIN
+  if (!user || !user.role) {
+    return { beneficiaryId: "__UNAUTHENTICATED__" };
+  }
+
+  const role = user.role;
   const userDistrict = user?.districtName || "নেত্রকোণা";
   const userUpazila = user?.upazilaName || null;
   const userDeptId = user?.departmentId || null;
@@ -168,7 +160,12 @@ export function getBeneficiaryScope(
   user: UserScopeIdentity | null | undefined,
   options?: ScopeOptions
 ) {
-  const role = user?.role || "SUPER_ADMIN";
+  // SECURITY: Fail-closed if unauthenticated — never default to SUPER_ADMIN
+  if (!user || !user.role) {
+    return { id: "__UNAUTHENTICATED__" };
+  }
+
+  const role = user.role;
   const userDistrict = user?.districtName || "নেত্রকোণা";
   const userUpazila = user?.upazilaName || null;
   const userDeptId = user?.departmentId || null;

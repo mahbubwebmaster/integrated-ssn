@@ -35,9 +35,8 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           const isHashValid = user.passwordHash
             ? bcrypt.compareSync(password, user.passwordHash)
             : false;
-          const isPlainValid = Boolean(user.password && user.password === password);
 
-          if (!isHashValid && !isPlainValid) {
+          if (!isHashValid) {
             console.warn(`[Auth] Password mismatch for: ${email}`);
             return null;
           }
@@ -69,5 +68,5 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
   session: {
     strategy: "jwt",
   },
-  secret: process.env.AUTH_SECRET || "ssnp-bangladesh-local-gov-secret-key-2026-audit-trail-sec",
+  secret: process.env.AUTH_SECRET,
 });
